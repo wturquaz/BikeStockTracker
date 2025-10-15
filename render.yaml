@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: bikestock
+    env: python
+    buildCommand: "pip install -r requirements.txt && python upgrade_database.py"
+    startCommand: "gunicorn app:app"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.12
+      - key: SECRET_KEY
+        generateValue: true
