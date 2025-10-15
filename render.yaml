@@ -2,7 +2,7 @@ services:
   - type: web
     name: bikestock
     env: python
-    buildCommand: "pip install -r requirements.txt && python upgrade_database.py"
+    buildCommand: "pip install -r requirements.txt && python safe_upgrade_database.py"
     startCommand: "gunicorn app:app"
     envVars:
       - key: PYTHON_VERSION
