@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Stok Listesi{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h5><i class="bi bi-boxes"></i> Stok Listesi</h5>
+                    {% if secili_depo %}
+                        <small class="text-muted">Depo: <strong>{{ secili_depo.depo_adi }}</strong></small>
+                    {% endif %}
+                </div>
+                <div class="d-flex gap-2">
+                    {% if depo_istatistik %}
+                    <div class="d-flex gap-1 me-3">
+                        <span class="badge bg-primary">{{ depo_istatistik.toplam_urun }} Ürün</span>
+                        <span class="badge bg-success">{{ depo_istatistik.stokta_olan }} Stokta</span>
+                        <span class="badge bg-danger">{{ depo_istatistik.stokta_olmayan }} Boş</span>
+                        <span class="badge bg-info">{{ depo_istatistik.toplam_stok_adedi }} Toplam</span>
+                    </div>
+                    {% endif %}
+                    <select class="form-select" id="depoSelect" onchange="depoChanged()">
+                        {% for depo in depolar %}
+                            <option value="{{ depo.id }}" {{ 'selected' if depo.id == secili_depo_id else '' }}>
+                                {{ depo.depo_adi }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>ID</th>
+                                <th>Ürün Adı</th>
+                                <th>Jant Ebatı</th>
+                                <th>Barkod</th>
+                                <th>Bu Depoda</th>
+                                <th>Toplam Stok</th>
+                                <th>Depo Dağılımı</th>
+                                <th>Durum</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stok in stoklar %}
+                            {% set toplam_stok_obj = toplam_stoklar | selectattr('id', 'equalto', stok.id) | first %}
+                            <tr>
+                                <td>{{ stok.id }}</td>
+                                <td>{{ stok.urun_adi }}</td>
+                                <td>
+                                    <span class="badge bg-info">{{ stok.jant_ebati }}"</span>
+                                </td>
+                                <td>
+                                    <code>{{ stok.barkod or 'N/A' }}</code>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if stok.stok_adedi and stok.stok_adedi > 10 else 'warning' if stok.stok_adedi and stok.stok_adedi > 0 else 'danger' }}">
+                                        {{ stok.stok_adedi or 0 }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if toplam_stok_obj %}
+                                        <span class="badge bg-{{ 'success' if toplam_stok_obj.toplam_stok > 20 else 'warning' if toplam_stok_obj.toplam_stok > 0 else 'danger' }}">
+                                            {{ toplam_stok_obj.toplam_stok or 0 }}
+                                        </span>
+                                        <small class="text-muted">({{ toplam_stok_obj.depo_sayisi }} depoda)</small>
+                                    {% else %}
+                                        <span class="badge bg-danger">0</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if toplam_stok_obj and toplam_stok_obj.depo_detay %}
+                                        <button type="button" class="btn btn-sm btn-outline-info" 
+                                                data-bs-toggle="popover" 
+                                                data-bs-placement="left"
+                                                data-bs-content="{{ toplam_stok_obj.depo_detay }}"
+                                                title="Depo Dağılımı">
+                                            <i class="bi bi-info-circle"></i>
+                                        </button>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if not stok.stok_adedi or stok.stok_adedi == 0 %}
+                                        <span class="badge bg-danger">Bu Depoda Yok</span>
+                                    {% elif stok.stok_adedi <= 5 %}
+                                        <span class="badge bg-warning">Kritik Seviye</span>
+                                    {% elif stok.stok_adedi <= 10 %}
+                                        <span class="badge bg-info">Düşük Stok</span>
+                                    {% else %}
+                                        <span class="badge bg-success">Yeterli</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                {% if not stoklar %}
+                <div class="text-center py-4">
+                    <i class="bi bi-box text-muted" style="font-size: 3rem;"></i>
+                    <p class="text-muted mt-3">Bu depoda hiç stok bulunamadı.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card border-success">
+            <div class="card-body text-center">
+                <h5 class="text-success">Yeterli Stok</h5>
+                <h3 class="text-success">
+                    {% set yeterli_count = 0 %}
+                    {% for stok in stoklar %}
+                        {% if stok.stok_adedi and stok.stok_adedi > 10 %}
+                            {% set yeterli_count = yeterli_count + 1 %}
+                        {% endif %}
+                    {% endfor %}
+                    {{ yeterli_count }}
+                </h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-warning">
+            <div class="card-body text-center">
+                <h5 class="text-warning">Düşük Stok</h5>
+                <h3 class="text-warning">
+                    {% set dusuk_count = 0 %}
+                    {% for stok in stoklar %}
+                        {% if stok.stok_adedi and stok.stok_adedi <= 10 and stok.stok_adedi > 0 %}
+                            {% set dusuk_count = dusuk_count + 1 %}
+                        {% endif %}
+                    {% endfor %}
+                    {{ dusuk_count }}
+                </h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-danger">
+            <div class="card-body text-center">
+                <h5 class="text-danger">Stokta Yok</h5>
+                <h3 class="text-danger">
+                    {% set yok_count = 0 %}
+                    {% for stok in stoklar %}
+                        {% if not stok.stok_adedi or stok.stok_adedi == 0 %}
+                            {% set yok_count = yok_count + 1 %}
+                        {% endif %}
+                    {% endfor %}
+                    {{ yok_count }}
+                </h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-info">
+            <div class="card-body text-center">
+                <h5 class="text-info">Toplam Ürün</h5>
+                <h3 class="text-info">{{ stoklar | length }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function depoChanged() {
+    const depoId = document.getElementById('depoSelect').value;
+    window.location.href = '{{ url_for("stok_listesi") }}?depo_id=' + depoId;
+}
+
+// Popover'ları etkinleştir
+document.addEventListener('DOMContentLoaded', function() {
+    var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+    var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
+        return new bootstrap.Popover(popoverTriggerEl);
+    });
+});
+</script>
+{% endblock %}

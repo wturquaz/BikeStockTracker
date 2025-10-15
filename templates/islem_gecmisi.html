@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}İşlem Geçmişi{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-clock-history"></i> İşlem Geçmişi</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Tarih</th>
+                                <th>İşlem Tipi</th>
+                                <th>Ürün Bilgisi</th>
+                                <th>Depo</th>
+                                <th>Eski Değer</th>
+                                <th>Yeni Değer</th>
+                                <th>Kullanıcı</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for islem in gecmis %}
+                            <tr>
+                                <td>
+                                    <small>
+                                        {% if islem.tarih %}
+                                            {% set date_str = islem.tarih.split(' ')[0] if ' ' in islem.tarih else islem.tarih %}
+                                            {{ date_str.split('-')[2] }}.{{ date_str.split('-')[1] }}.{{ date_str.split('-')[0] }}
+                                            {% if ' ' in islem.tarih %}
+                                                {{ islem.tarih.split(' ')[1].split('.')[0] }}
+                                            {% endif %}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </small>
+                                </td>
+                                <td>
+                                    {% if islem.islem_tipi == 'STOK_CIKIS' %}
+                                        <span class="badge bg-danger">
+                                            <i class="bi bi-arrow-down"></i> Stok Çıkışı
+                                        </span>
+                                    {% elif islem.islem_tipi == 'STOK_GIRIS' %}
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-arrow-up"></i> Stok Girişi
+                                        </span>
+                                    {% elif islem.islem_tipi == 'TRANSFER' %}
+                                        <span class="badge bg-info">
+                                            <i class="bi bi-arrow-left-right"></i> Transfer
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ islem.islem_tipi }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="fw-bold">{{ islem.urun_bilgisi }}</div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark">
+                                        {{ islem.depo_adi or 'N/A' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if islem.eski_deger %}
+                                        <span class="badge bg-warning text-dark">{{ islem.eski_deger }}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if islem.yeni_deger %}
+                                        <span class="badge bg-success">{{ islem.yeni_deger }}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted">
+                                        <i class="bi bi-person"></i> {{ islem.kullanici_adi or 'Sistem' }}
+                                    </small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                {% if not gecmis %}
+                <div class="text-center py-4">
+                    <i class="bi bi-clock-history text-muted" style="font-size: 3rem;"></i>
+                    <p class="text-muted mt-3">Henüz hiç işlem geçmişi bulunmuyor.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h6><i class="bi bi-info-circle"></i> İşlem Geçmişi Hakkında</h6>
+                <p class="mb-0">
+                    Sistemde yapılan tüm stok işlemleri burada gösterilir. Her işlem için tarih, 
+                    işlem yapan kullanıcı, eski ve yeni değerler kayıt altına alınır.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

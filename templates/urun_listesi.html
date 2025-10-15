@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}Ürün Listesi{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="bi bi-tag"></i> Ürün Yönetimi</h5>
+                <div class="d-flex gap-2">
+                    <form method="GET" class="d-flex">
+                        <input type="text" class="form-control me-2" name="arama" 
+                               placeholder="Ürün ara..." value="{{ arama }}" style="width: 250px;">
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="bi bi-search"></i>
+                        </button>
+                        {% if arama %}
+                        <a href="{{ url_for('urun_listesi') }}" class="btn btn-outline-secondary ms-1">
+                            <i class="bi bi-x"></i>
+                        </a>
+                        {% endif %}
+                    </form>
+                    <a href="{{ url_for('urun_ekle') }}" class="btn btn-success">
+                        <i class="bi bi-plus-circle"></i> Yeni Ürün
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>ID</th>
+                                <th>Ürün Adı</th>
+                                <th>Jant Ebatı</th>
+                                <th>Barkod</th>
+                                <th>Açıklama</th>
+                                <th>Oluşturma</th>
+                                <th>İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for urun in urunler %}
+                            <tr>
+                                <td>{{ urun.id }}</td>
+                                <td>
+                                    <strong>{{ urun.urun_adi }}</strong>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">{{ urun.jant_ebati }}"</span>
+                                </td>
+                                <td>
+                                    {% if urun.barkod %}
+                                        <code>{{ urun.barkod }}</code>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if urun.aciklama %}
+                                        {{ urun.aciklama[:50] }}{{ '...' if urun.aciklama|length > 50 else '' }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted">
+                                        {% if urun.created_at %}
+                                            {% set date_str = urun.created_at.split(' ')[0] if ' ' in urun.created_at else urun.created_at %}
+                                            {{ date_str.split('-')[2] }}.{{ date_str.split('-')[1] }}.{{ date_str.split('-')[0] }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </small>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <a href="{{ url_for('urun_guncelle', urun_id=urun.id) }}" 
+                                           class="btn btn-outline-primary" title="Düzenle">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        {% if session.rol == 'admin' %}
+                                        <button type="button" class="btn btn-outline-danger" 
+                                                data-urun-id="{{ urun.id }}" 
+                                                data-urun-adi="{{ urun.urun_adi }}"
+                                                onclick="urunSil(this)" 
+                                                title="Sil">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                {% if not urunler %}
+                <div class="text-center py-4">
+                    <i class="bi bi-tag text-muted" style="font-size: 3rem;"></i>
+                    <p class="text-muted mt-3">
+                        {% if arama %}
+                            "{{ arama }}" araması için ürün bulunamadı.
+                        {% else %}
+                            Henüz hiç ürün eklenmemiş.
+                        {% endif %}
+                    </p>
+                    <a href="{{ url_for('urun_ekle') }}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> İlk Ürünü Ekle
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card border-primary">
+            <div class="card-body text-center">
+                <h5 class="text-primary">Toplam Ürün</h5>
+                <h3 class="text-primary">{{ urunler | length }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-success">
+            <div class="card-body text-center">
+                <h5 class="text-success">Barkodlu</h5>
+                <h3 class="text-success">
+                    {% set barkodlu = 0 %}
+                    {% for urun in urunler %}
+                        {% if urun.barkod %}
+                            {% set barkodlu = barkodlu + 1 %}
+                        {% endif %}
+                    {% endfor %}
+                    {{ barkodlu }}
+                </h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-warning">
+            <div class="card-body text-center">
+                <h5 class="text-warning">Barkodsuz</h5>
+                <h3 class="text-warning">{{ urunler | length - barkodlu }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-info">
+            <div class="card-body text-center">
+                <h5 class="text-info">Jant Çeşidi</h5>
+                <h3 class="text-info">
+                    {% set jant_cesitleri = urunler | map(attribute='jant_ebati') | unique | list %}
+                    {{ jant_cesitleri | length }}
+                </h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Silme Onay Modal -->
+<div class="modal fade" id="silmeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ürün Silme Onayı</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Dikkat!</strong> Bu işlem geri alınamaz.
+                </div>
+                <p><strong id="silinecekUrun"></strong> ürününü silmek istediğinizden emin misiniz?</p>
+                <p class="text-muted">
+                    <small>Not: Ürünün stokta kaydı varsa silme işlemi gerçekleştirilemez.</small>
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                <form id="silmeForm" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Evet, Sil
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function urunSil(button) {
+    const urunId = button.getAttribute('data-urun-id');
+    const urunAdi = button.getAttribute('data-urun-adi');
+    
+    document.getElementById('silinecekUrun').textContent = urunAdi;
+    document.getElementById('silmeForm').action = `/urun_sil/${urunId}`;
+    
+    const modal = new bootstrap.Modal(document.getElementById('silmeModal'));
+    modal.show();
+}
+</script>
+{% endblock %}

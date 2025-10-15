@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Kullanıcı Yönetimi{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="bi bi-people"></i> Kullanıcı Yönetimi</h5>
+                <div>
+                    <span class="badge bg-info">Admin Paneli</span>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if kullanicilar %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>ID</th>
+                                <th>Kullanıcı Adı</th>
+                                <th>Tam Ad</th>
+                                <th>Rol</th>
+                                <th>Durum</th>
+                                <th>Oluşturma Tarihi</th>
+                                <th>Son Giriş</th>
+                                <th>İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for kullanici in kullanicilar %}
+                            <tr>
+                                <td>{{ kullanici.id }}</td>
+                                <td>
+                                    <strong>{{ kullanici.kullanici_adi }}</strong>
+                                    {% if kullanici.id == session.kullanici_id %}
+                                        <span class="badge bg-primary ms-1">Sen</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ kullanici.tam_ad or 'N/A' }}</td>
+                                <td>
+                                    {% if kullanici.rol == 'admin' %}
+                                        <span class="badge bg-danger">Admin</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ kullanici.rol.title() }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if kullanici.aktif %}
+                                        <span class="badge bg-success">Aktif</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Pasif</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if kullanici.created_at %}
+                                        {% set date_str = kullanici.created_at.split(' ')[0] if ' ' in kullanici.created_at else kullanici.created_at %}
+                                        {{ date_str.split('-')[2] }}.{{ date_str.split('-')[1] }}.{{ date_str.split('-')[0] }}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if kullanici.last_login %}
+                                        {% set date_str = kullanici.last_login.split(' ')[0] if ' ' in kullanici.last_login else kullanici.last_login %}
+                                        {{ date_str.split('-')[2] }}.{{ date_str.split('-')[1] }}.{{ date_str.split('-')[0] }}
+                                    {% else %}
+                                        Hiç giriş yapmamış
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if kullanici.id != session.kullanici_id %}
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button" class="btn btn-warning" 
+                                                data-kullanici-id="{{ kullanici.id }}"
+                                                data-kullanici-adi="{{ kullanici.kullanici_adi }}"
+                                                onclick="sifreSifirla(this)"
+                                                title="Şifre Sıfırla">
+                                            <i class="bi bi-key"></i>
+                                        </button>
+                                    </div>
+                                    {% else %}
+                                    <small class="text-muted">Kendi hesabın</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-people display-1 text-muted"></i>
+                    <p class="text-muted mt-2">Henüz kullanıcı bulunmuyor.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="bi bi-info-circle"></i> Kullanıcı Yönetimi Bilgileri</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Admin İşlemleri:</h6>
+                        <ul class="list-unstyled">
+                            <li><i class="bi bi-check-circle text-success"></i> Kullanıcı listesini görüntüleme</li>
+                            <li><i class="bi bi-check-circle text-success"></i> Diğer kullanıcıların şifrelerini sıfırlama</li>
+                            <li><i class="bi bi-check-circle text-success"></i> Sistem işlem geçmişini görüntüleme</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Şifre Sıfırlama:</h6>
+                        <ul class="list-unstyled">
+                            <li><i class="bi bi-info-circle text-info"></i> Sıfırlanan şifre: <code>kullanici_adi + 123</code></li>
+                            <li><i class="bi bi-info-circle text-info"></i> Kullanıcı ilk girişte şifresini değiştirmelidir</li>
+                            <li><i class="bi bi-exclamation-triangle text-warning"></i> Kendi şifrenizi buradan sıfırlayamazsınız</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Şifre Sıfırlama Confirmation Modal -->
+<div class="modal fade" id="sifreSifirlaModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-key"></i> Şifre Sıfırlama Onayı</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong id="kullaniciAdi"></strong> kullanıcısının şifresini sıfırlamak istediğinizden emin misiniz?</p>
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    Yeni şifre: <strong><code id="yeniSifre"></code></strong>
+                </div>
+                <p><small class="text-muted">Bu işlem geri alınamaz. Kullanıcı ilk girişte şifresini değiştirmelidir.</small></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x"></i> İptal
+                </button>
+                <form id="sifreSifirlaForm" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-warning">
+                        <i class="bi bi-key"></i> Şifre Sıfırla
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function sifreSifirla(button) {
+    // Data attribute'lardan değerleri al
+    const kullaniciId = button.getAttribute('data-kullanici-id');
+    const kullaniciAdi = button.getAttribute('data-kullanici-adi');
+    
+    // Modal içeriğini güncelle
+    document.getElementById('kullaniciAdi').textContent = kullaniciAdi;
+    document.getElementById('yeniSifre').textContent = kullaniciAdi + '123';
+    
+    // Form action'ını güncelle
+    document.getElementById('sifreSifirlaForm').action = '/kullanici_sifre_sifirla/' + kullaniciId;
+    
+    // Modal'ı göster
+    new bootstrap.Modal(document.getElementById('sifreSifirlaModal')).show();
+}
+</script>
+{% endblock %}

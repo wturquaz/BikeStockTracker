@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}Şifre Değiştir{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-md-6 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-shield-lock"></i> Şifre Değiştir</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="sifreForm">
+                    <div class="mb-3">
+                        <label for="mevcut_sifre" class="form-label">
+                            <i class="bi bi-key"></i> Mevcut Şifre <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="mevcut_sifre" name="mevcut_sifre" required>
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('mevcut_sifre')">
+                                <i class="bi bi-eye" id="mevcut_sifre_icon"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="yeni_sifre" class="form-label">
+                            <i class="bi bi-key-fill"></i> Yeni Şifre <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="yeni_sifre" name="yeni_sifre" 
+                                   required minlength="6" maxlength="100">
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('yeni_sifre')">
+                                <i class="bi bi-eye" id="yeni_sifre_icon"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">
+                            En az 6 karakter olmalıdır.
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="yeni_sifre_tekrar" class="form-label">
+                            <i class="bi bi-key-fill"></i> Yeni Şifre Tekrar <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="yeni_sifre_tekrar" name="yeni_sifre_tekrar" 
+                                   required minlength="6" maxlength="100">
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('yeni_sifre_tekrar')">
+                                <i class="bi bi-eye" id="yeni_sifre_tekrar_icon"></i>
+                            </button>
+                        </div>
+                        <div id="sifreUyari" class="form-text text-danger" style="display: none;">
+                            Şifreler eşleşmiyor!
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Dikkat:</strong> Şifrenizi değiştirdikten sonra tekrar giriş yapmanız gerekecektir.
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> İptal
+                        </a>
+                        <button type="button" class="btn btn-outline-secondary" onclick="formTemizle()">
+                            <i class="bi bi-eraser"></i> Temizle
+                        </button>
+                        <button type="submit" class="btn btn-primary" id="degistirBtn">
+                            <i class="bi bi-check-circle"></i> Şifre Değiştir
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="bi bi-shield-check"></i> Güvenlik İpuçları</h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled mb-0">
+                    <li><i class="bi bi-check-circle text-success"></i> En az 6 karakter uzunluğunda olmalıdır</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Büyük ve küçük harfler kullanın</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Sayılar ve özel karakterler ekleyin</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Kolay tahmin edilebilir kelimeler kullanmayın</li>
+                    <li><i class="bi bi-check-circle text-success"></i> Şifrenizi düzenli olarak değiştirin</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Şifre görünürlük toggle
+function togglePassword(inputId) {
+    const input = document.getElementById(inputId);
+    const icon = document.getElementById(inputId + '_icon');
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'bi bi-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'bi bi-eye';
+    }
+}
+
+// Form temizleme
+function formTemizle() {
+    document.getElementById('sifreForm').reset();
+    document.getElementById('sifreUyari').style.display = 'none';
+    document.getElementById('degistirBtn').disabled = false;
+}
+
+// Şifre eşleşme kontrolü
+function sifreEslesmekontrol() {
+    const yeniSifre = document.getElementById('yeni_sifre').value;
+    const yeniSifreTekrar = document.getElementById('yeni_sifre_tekrar').value;
+    const uyari = document.getElementById('sifreUyari');
+    const btn = document.getElementById('degistirBtn');
+    
+    if (yeniSifreTekrar.length > 0) {
+        if (yeniSifre !== yeniSifreTekrar) {
+            uyari.style.display = 'block';
+            btn.disabled = true;
+        } else {
+            uyari.style.display = 'none';
+            btn.disabled = false;
+        }
+    } else {
+        uyari.style.display = 'none';
+        btn.disabled = false;
+    }
+}
+
+// Form validation
+document.getElementById('sifreForm').addEventListener('submit', function(e) {
+    const mevcutSifre = document.getElementById('mevcut_sifre').value.trim();
+    const yeniSifre = document.getElementById('yeni_sifre').value.trim();
+    const yeniSifreTekrar = document.getElementById('yeni_sifre_tekrar').value.trim();
+    
+    if (!mevcutSifre || !yeniSifre || !yeniSifreTekrar) {
+        e.preventDefault();
+        alert('Tüm alanlar zorunludur!');
+        return false;
+    }
+    
+    if (yeniSifre.length < 6) {
+        e.preventDefault();
+        alert('Yeni şifre en az 6 karakter olmalıdır!');
+        return false;
+    }
+    
+    if (yeniSifre !== yeniSifreTekrar) {
+        e.preventDefault();
+        alert('Yeni şifreler eşleşmiyor!');
+        return false;
+    }
+    
+    if (mevcutSifre === yeniSifre) {
+        e.preventDefault();
+        alert('Yeni şifre mevcut şifreden farklı olmalıdır!');
+        return false;
+    }
+    
+    // Onay iste
+    if (!confirm('Şifrenizi değiştirmek istediğinizden emin misiniz?')) {
+        e.preventDefault();
+        return false;
+    }
+});
+
+// Event listeners
+document.getElementById('yeni_sifre').addEventListener('input', sifreEslesmekontrol);
+document.getElementById('yeni_sifre_tekrar').addEventListener('input', sifreEslesmekontrol);
+</script>
+{% endblock %}

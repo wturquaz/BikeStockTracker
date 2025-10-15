@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Ana Sayfa{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="jumbotron bg-primary text-white p-5 rounded">
+            <h1 class="display-4">
+                <i class="bi bi-bicycle"></i> BikeStock Yönetim Sistemi
+            </h1>
+            <p class="lead">Depo bazlı bisiklet stok takip ve yönetim sistemi</p>
+            <hr class="my-4" style="border-color: rgba(255,255,255,0.3);">
+            <p>Hoş geldiniz, <strong>{{ session.kullanici_adi }}</strong>!</p>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-3 mb-4">
+        <div class="card h-100 border-primary">
+            <div class="card-body text-center">
+                <i class="bi bi-boxes text-primary" style="font-size: 3rem;"></i>
+                <h5 class="card-title mt-3">Stok Listesi</h5>
+                <p class="card-text">Depo bazlı stok durumunu görüntüleyin</p>
+                <a href="{{ url_for('stok_listesi') }}" class="btn btn-primary">
+                    <i class="bi bi-arrow-right"></i> Görüntüle
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-4">
+        <div class="card h-100 border-danger">
+            <div class="card-body text-center">
+                <i class="bi bi-arrow-down-circle text-danger" style="font-size: 3rem;"></i>
+                <h5 class="card-title mt-3">Stok Çıkışı</h5>
+                <p class="card-text">Barkod veya ürün adı ile stok çıkışı yapın</p>
+                <a href="{{ url_for('stok_cikisi') }}" class="btn btn-danger">
+                    <i class="bi bi-arrow-right"></i> Çıkış Yap
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-4">
+        <div class="card h-100 border-warning">
+            <div class="card-body text-center">
+                <i class="bi bi-tag text-warning" style="font-size: 3rem;"></i>
+                <h5 class="card-title mt-3">Ürün Yönetimi</h5>
+                <p class="card-text">Ürün ekleme, düzenleme ve güncelleme</p>
+                <a href="{{ url_for('urun_listesi') }}" class="btn btn-warning">
+                    <i class="bi bi-arrow-right"></i> Yönet
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-4">
+        <div class="card h-100 border-info">
+            <div class="card-body text-center">
+                <i class="bi bi-clock-history text-info" style="font-size: 3rem;"></i>
+                <h5 class="card-title mt-3">İşlem Geçmişi</h5>
+                <p class="card-text">Tüm stok işlemlerini görüntüleyin</p>
+                <a href="{{ url_for('islem_gecmisi') }}" class="btn btn-info">
+                    <i class="bi bi-arrow-right"></i> Görüntüle
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-4">
+        <div class="card h-100 border-warning">
+            <div class="card-body text-center">
+                <i class="bi bi-graph-up text-warning" style="font-size: 3rem;"></i>
+                <h5 class="card-title mt-3">Günlük Rapor</h5>
+                <p class="card-text">Günlük giriş-çıkış raporu</p>
+                <a href="{{ url_for('gunluk_rapor') }}" class="btn btn-warning">
+                    <i class="bi bi-arrow-right"></i> Rapor
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-4">
+        <div class="card h-100 border-success">
+            <div class="card-body text-center">
+                <i class="bi bi-arrow-up-circle text-success" style="font-size: 3rem;"></i>
+                <h5 class="card-title mt-3">Stok Girişi</h5>
+                <p class="card-text">Yeni stok girişi ve tedarik işlemleri</p>
+                <a href="{{ url_for('stok_girisi') }}" class="btn btn-success">
+                    <i class="bi bi-arrow-right"></i> Giriş Yap
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-4">
+        <div class="card h-100 border-primary">
+            <div class="card-body text-center">
+                <i class="bi bi-arrow-left-right text-primary" style="font-size: 3rem;"></i>
+                <h5 class="card-title mt-3">Depo Transfer</h5>
+                <p class="card-text">Depolar arası stok transfer işlemleri</p>
+                <a href="{{ url_for('depo_transfer') }}" class="btn btn-primary">
+                    <i class="bi bi-arrow-right"></i> Transfer
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-info-circle"></i> Sistem Bilgileri</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Özellikler:</h6>
+                        <ul>
+                            <li>Depo bazlı stok takibi</li>
+                            <li>Barkod ve ürün adı ile arama</li>
+                            <li>Stok giriş/çıkış işlemleri</li>
+                            <li>Depo arası transfer</li>
+                            <li>Ürün yönetimi (ekleme/düzenleme)</li>
+                            <li>Kullanıcı yetkilendirme sistemi</li>
+                            <li>Detaylı işlem geçmişi</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Güvenlik:</h6>
+                        <ul>
+                            <li>Şifreli kullanıcı girişi</li>
+                            <li>Session tabanlı oturum yönetimi</li>
+                            <li>Tüm işlemler loglanır</li>
+                            <li>Rol bazlı erişim kontrolü</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
