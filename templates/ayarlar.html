@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}Sistem Ayarları{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-gear-fill"></i> Sistem Ayarları</h5>
+            </div>
+            <div class="card-body">
+                
+                <!-- Kargo Firması Varsayılanı Ayarları -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <h6><i class="bi bi-truck"></i> Kargo Firması Ayarları</h6>
+                        <div class="card">
+                            <div class="card-body">
+                                <form method="POST" action="{{ url_for('ayar_kaydet') }}">
+                                    <div class="row">
+                                        <div class="col-md-8">
+                                            <label for="varsayilan_kargo" class="form-label">Varsayılan Kargo Firması</label>
+                                            <select class="form-select" name="deger" id="varsayilan_kargo">
+                                                <option value="">Varsayılan seçiniz...</option>
+                                                {% for firma in kargo_firmalari %}
+                                                    {% if firma.aktif %}
+                                                        <option value="{{ firma.id }}" 
+                                                                {% if ayarlar.get('varsayilan_kargo_firmasi_id') == firma.id|string %}selected{% endif %}>
+                                                            {{ firma.firma_adi }} ({{ firma.kisa_adi }})
+                                                        </option>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </select>
+                                            <small class="text-muted">Stok çıkışı yaparken otomatik olarak seçilecek kargo firması</small>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">&nbsp;</label>
+                                            <div>
+                                                <input type="hidden" name="anahtar" value="varsayilan_kargo_firmasi_id">
+                                                <input type="hidden" name="aciklama" value="Stok çıkışında varsayılan kargo firması">
+                                                <button type="submit" class="btn btn-primary">
+                                                    <i class="bi bi-check"></i> Kaydet
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Kargo Firması Yönetimi -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6><i class="bi bi-building"></i> Kargo Firması Yönetimi</h6>
+                            <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#kargoFirmaModal">
+                                <i class="bi bi-plus"></i> Yeni Firma Ekle
+                            </button>
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Firma Adı</th>
+                                        <th>Kısa Adı</th>
+                                        <th>Telefon</th>
+                                        <th>Website</th>
+                                        <th>Durum</th>
+                                        <th>İşlemler</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for firma in kargo_firmalari %}
+                                    <tr>
+                                        <td><strong>{{ firma.firma_adi }}</strong></td>
+                                        <td>
+                                            {% if firma.kisa_adi %}
+                                                <span class="badge bg-secondary">{{ firma.kisa_adi }}</span>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ firma.telefon or '-' }}</td>
+                                        <td>
+                                            {% if firma.website %}
+                                                <a href="http://{{ firma.website }}" target="_blank" class="text-decoration-none">
+                                                    <i class="bi bi-globe"></i> {{ firma.website }}
+                                                </a>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if firma.aktif %}
+                                                <span class="badge bg-success">Aktif</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">Pasif</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <button type="button" class="btn btn-outline-primary btn-sm" 
+                                                    data-firma-id="{{ firma.id }}"
+                                                    data-firma-adi="{{ firma.firma_adi }}"
+                                                    data-kisa-adi="{{ firma.kisa_adi or '' }}"
+                                                    data-telefon="{{ firma.telefon or '' }}"
+                                                    data-website="{{ firma.website or '' }}"
+                                                    data-aktif="{{ firma.aktif }}"
+                                                    onclick="firmaGuncelle(this)">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Genel Ayarlar -->
+                <div class="row">
+                    <div class="col-12">
+                        <h6><i class="bi bi-sliders"></i> Genel Ayarlar</h6>
+                        <div class="card">
+                            <div class="card-body">
+                                <form method="POST" action="{{ url_for('ayar_kaydet') }}">
+                                    <div class="row mb-3">
+                                        <div class="col-md-4">
+                                            <label for="sirket_adi" class="form-label">Şirket Adı</label>
+                                            <input type="text" class="form-control" name="deger" id="sirket_adi" 
+                                                   value="{{ ayarlar.get('sirket_adi', 'BikeStock') }}" placeholder="Şirket adı">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label for="sirket_telefon" class="form-label">Şirket Telefon</label>
+                                            <input type="text" class="form-control" name="deger" id="sirket_telefon" 
+                                                   value="{{ ayarlar.get('sirket_telefon', '') }}" placeholder="Telefon numarası">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label for="sirket_adres" class="form-label">Şirket Adres</label>
+                                            <input type="text" class="form-control" name="deger" id="sirket_adres" 
+                                                   value="{{ ayarlar.get('sirket_adres', '') }}" placeholder="Adres">
+                                        </div>
+                                    </div>
+                                    <div class="text-end">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="bi bi-check"></i> Genel Ayarları Kaydet
+                                        </button>
+                                    </div>
+                                    <input type="hidden" name="anahtar" value="genel_ayarlar">
+                                    <input type="hidden" name="aciklama" value="Genel sistem ayarları">
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Kargo Firma Modal -->
+<div class="modal fade" id="kargoFirmaModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Kargo Firması</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('kargo_firma_kaydet') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="firma_id" id="modalFirmaId">
+                    
+                    <div class="mb-3">
+                        <label for="modalFirmaAdi" class="form-label">Firma Adı <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="firma_adi" id="modalFirmaAdi" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="modalKisaAdi" class="form-label">Kısa Adı</label>
+                        <input type="text" class="form-control" name="kisa_adi" id="modalKisaAdi" maxlength="20">
+                        <small class="text-muted">Maksimum 20 karakter</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="modalTelefon" class="form-label">Telefon</label>
+                        <input type="text" class="form-control" name="telefon" id="modalTelefon">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="modalWebsite" class="form-label">Website</label>
+                        <input type="text" class="form-control" name="website" id="modalWebsite" placeholder="www.example.com">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="aktif" value="1" id="modalAktif" checked>
+                            <label class="form-check-label" for="modalAktif">
+                                Aktif
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-primary">Kaydet</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function firmaGuncelle(btn) {
+    const id = btn.dataset.firmaId;
+    const firmaAdi = btn.dataset.firmaAdi;
+    const kisaAdi = btn.dataset.kisaAdi;
+    const telefon = btn.dataset.telefon;
+    const website = btn.dataset.website;
+    const aktif = btn.dataset.aktif === 'True';
+    
+    document.getElementById('modalFirmaId').value = id;
+    document.getElementById('modalFirmaAdi').value = firmaAdi;
+    document.getElementById('modalKisaAdi').value = kisaAdi;
+    document.getElementById('modalTelefon').value = telefon;
+    document.getElementById('modalWebsite').value = website;
+    document.getElementById('modalAktif').checked = aktif;
+    
+    new bootstrap.Modal(document.getElementById('kargoFirmaModal')).show();
+}
+
+// Modal temizle
+document.getElementById('kargoFirmaModal').addEventListener('hidden.bs.modal', function () {
+    document.getElementById('modalFirmaId').value = '';
+    document.getElementById('modalFirmaAdi').value = '';
+    document.getElementById('modalKisaAdi').value = '';
+    document.getElementById('modalTelefon').value = '';
+    document.getElementById('modalWebsite').value = '';
+    document.getElementById('modalAktif').checked = true;
+});
+</script>
+{% endblock %}

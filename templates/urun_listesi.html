@@ -34,6 +34,7 @@
                                 <th>ID</th>
                                 <th>Ürün Adı</th>
                                 <th>Jant Ebatı</th>
+                                <th>Desi (kg)</th>
                                 <th>Barkod</th>
                                 <th>Açıklama</th>
                                 <th>Oluşturma</th>
@@ -49,6 +50,9 @@
                                 </td>
                                 <td>
                                     <span class="badge bg-info">{{ urun.jant_ebati }}"</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-warning text-dark">{{ "%.2f"|format(urun.desi or 0) }} kg</span>
                                 </td>
                                 <td>
                                     {% if urun.barkod %}

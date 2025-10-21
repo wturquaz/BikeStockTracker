@@ -10,9 +10,29 @@
                 <h5><i class="bi bi-graph-up"></i> Günlük Rapor</h5>
                 <div>
                     <form method="GET" class="d-flex align-items-center" style="gap: 10px;">
-                        <label for="tarih" class="form-label mb-0 text-nowrap">Tarih:</label>
-                        <input type="date" id="tarih" name="tarih" class="form-control form-control-sm" 
-                               value="{{ secili_tarih }}" onchange="this.form.submit()" style="width: 150px;">
+                        <!-- Tek Tarih Seçimi -->
+                        <div class="d-flex align-items-center" style="gap: 5px;">
+                            <label for="tarih" class="form-label mb-0 text-nowrap">Tarih:</label>
+                            <input type="date" id="tarih" name="tarih" class="form-control form-control-sm" 
+                                   value="{{ secili_tarih }}" style="width: 150px;">
+                        </div>
+                        
+                        <!-- Tarih Aralığı Seçimi (Kargo Raporu için) -->
+                        <div class="d-flex align-items-center" style="gap: 5px;">
+                            <label for="baslangic_tarih" class="form-label mb-0 text-nowrap">Başlangıç:</label>
+                            <input type="date" id="baslangic_tarih" name="baslangic_tarih" class="form-control form-control-sm" 
+                                   value="{{ baslangic_tarih }}" style="width: 150px;">
+                        </div>
+                        
+                        <div class="d-flex align-items-center" style="gap: 5px;">
+                            <label for="bitis_tarih" class="form-label mb-0 text-nowrap">Bitiş:</label>
+                            <input type="date" id="bitis_tarih" name="bitis_tarih" class="form-control form-control-sm" 
+                                   value="{{ bitis_tarih }}" style="width: 150px;">
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="bi bi-search"></i> Filtrele
+                        </button>
                     </form>
                 </div>
             </div>
@@ -93,6 +113,14 @@
                                 data-bs-target="#transfer" type="button" role="tab">
                             <i class="bi bi-arrow-left-right text-info"></i> 
                             Transfer İşlemleri ({{ transfer_islemleri|length }})
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="kargo-tab" data-bs-toggle="tab" 
+                                data-bs-target="#kargo" type="button" role="tab">
+                            <i class="bi bi-truck text-warning"></i> 
+                            Kargo Raporu 
+                            <small class="text-muted">({{ baslangic_tarih }} - {{ bitis_tarih }})</small>
                         </button>
                     </li>
                 </ul>
@@ -300,6 +328,130 @@
                             {% endif %}
                         </div>
                     </div>
+
+                    <!-- Kargo Raporu -->
+                    <div class="tab-pane fade" id="kargo" role="tabpanel">
+                        <div class="mt-3">
+                            <!-- Fiş Özeti -->
+                            {% if fis_ozeti %}
+                            <div class="row mb-4">
+                                <div class="col-md-3">
+                                    <div class="card border-primary">
+                                        <div class="card-body text-center">
+                                            <h5 class="card-title text-primary">
+                                                <i class="bi bi-receipt"></i> Toplam Fiş
+                                            </h5>
+                                            <h3 class="text-primary">{{ fis_ozeti.toplam_fis or 0 }}</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card border-info">
+                                        <div class="card-body text-center">
+                                            <h5 class="card-title text-info">
+                                                <i class="bi bi-box"></i> Ürün Çeşidi
+                                            </h5>
+                                            <h3 class="text-info">{{ fis_ozeti.toplam_urun_cesit or 0 }}</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card border-warning">
+                                        <div class="card-body text-center">
+                                            <h5 class="card-title text-warning">
+                                                <i class="bi bi-123"></i> Toplam Adet
+                                            </h5>
+                                            <h3 class="text-warning">{{ fis_ozeti.toplam_cikis_adet or 0 }}</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card border-success">
+                                        <div class="card-body text-center">
+                                            <h5 class="card-title text-success">
+                                                <i class="bi bi-rulers"></i> Toplam Desi
+                                            </h5>
+                                            <h3 class="text-success">{{ fis_ozeti.toplam_desi or 0 }}</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <!-- Kargo Firmalarına Göre Rapor -->
+                            {% if kargo_raporu %}
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead class="table-warning">
+                                        <tr>
+                                            <th><i class="bi bi-truck"></i> Kargo Firması</th>
+                                            <th><i class="bi bi-receipt"></i> Fiş Sayısı</th>
+                                            <th><i class="bi bi-box"></i> Ürün Çeşidi</th>
+                                            <th><i class="bi bi-123"></i> Toplam Adet</th>
+                                            <th><i class="bi bi-rulers"></i> Toplam Desi</th>
+                                            <th><i class="bi bi-percent"></i> Oran</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% set toplam_adet = kargo_raporu|sum(attribute='toplam_adet') or 0 %}
+                                        {% for rapor in kargo_raporu %}
+                                        <tr>
+                                            <td>
+                                                <span class="badge bg-primary">{{ rapor.kargo_firma }}</span>
+                                            </td>
+                                            <td>
+                                                <span class="fw-bold">{{ rapor.fis_sayisi }}</span>
+                                            </td>
+                                            <td>
+                                                <span class="fw-bold">{{ rapor.urun_cesit_sayisi }}</span>
+                                            </td>
+                                            <td>
+                                                <span class="fw-bold text-warning">{{ rapor.toplam_adet }}</span>
+                                            </td>
+                                            <td>
+                                                <span class="fw-bold text-success">{{ rapor.toplam_desi or 0 }}</span>
+                                            </td>
+                                            <td>
+                                                {% if toplam_adet and toplam_adet > 0 and rapor.toplam_adet %}
+                                                {% set oran = ((rapor.toplam_adet|float / toplam_adet|float) * 100) | round(1) %}
+                                                <div class="progress" style="height: 20px;">
+                                                    <div class="progress-bar bg-primary" role="progressbar" 
+                                                         data-width="{{ oran }}"
+                                                         aria-valuenow="{{ oran }}" 
+                                                         aria-valuemin="0" 
+                                                         aria-valuemax="100">
+                                                        {{ oran }}%
+                                                    </div>
+                                                </div>
+                                                {% else %}
+                                                <span class="text-muted">0%</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                    <tfoot class="table-secondary">
+                                        <tr>
+                                            <th>TOPLAM</th>
+                                            <th>{{ kargo_raporu|sum(attribute='fis_sayisi') }}</th>
+                                            <th>{{ kargo_raporu|sum(attribute='urun_cesit_sayisi') }}</th>
+                                            <th>{{ kargo_raporu|sum(attribute='toplam_adet') }}</th>
+                                            <th>{{ kargo_raporu|sum(attribute='toplam_desi') }}</th>
+                                            <th>100%</th>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="text-center py-4">
+                                <i class="bi bi-truck display-1 text-muted"></i>
+                                <p class="text-muted mt-2">
+                                    {{ baslangic_tarih }} - {{ bitis_tarih }} tarihleri arasında kargo çıkışı bulunmuyor.
+                                </p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -335,6 +487,7 @@
                 <div class="mt-3">
                     <small class="text-muted">
                         <i class="bi bi-calendar-date"></i> Seçili Tarih: <strong>{{ secili_tarih }}</strong> | 
+                        <i class="bi bi-calendar-range"></i> Kargo Aralığı: <strong>{{ baslangic_tarih }} - {{ bitis_tarih }}</strong> | 
                         <i class="bi bi-clock"></i> Rapor Oluşturma: {{ moment().format('DD.MM.YYYY HH:mm') if moment else 'Şimdi' }}
                     </small>
                 </div>
@@ -342,4 +495,15 @@
         </div>
     </div>
 </div>
+
+<script>
+// Progress bar genişliklerini ayarla
+document.addEventListener('DOMContentLoaded', function() {
+    const progressBars = document.querySelectorAll('.progress-bar[data-width]');
+    progressBars.forEach(function(bar) {
+        const width = bar.getAttribute('data-width');
+        bar.style.width = width + '%';
+    });
+});
+</script>
 {% endblock %}

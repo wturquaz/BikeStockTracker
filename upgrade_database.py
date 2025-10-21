@@ -16,6 +16,16 @@ def upgrade_database():
                 print("Barkod sütunu zaten mevcut, atlaniyor...")
             else:
                 raise e
+
+        # 1.1. Ürün tablosuna desi alanı ekle
+        print("Ürün tablosuna desi alanı ekleniyor...")
+        try:
+            cursor.execute("ALTER TABLE urun ADD COLUMN desi DECIMAL(8,2) DEFAULT 0.00")
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" in str(e):
+                print("Desi sütunu zaten mevcut, atlaniyor...")
+            else:
+                raise e
         
         # 2. Kullanıcı tablosu oluştur
         print("Kullanıcı tablosu oluşturuluyor...")
@@ -77,6 +87,62 @@ def upgrade_database():
             cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_urun_barkod ON urun(barkod)")
         except sqlite3.IntegrityError:
             print("Barkod indexi oluşturulurken hata, devam ediliyor...")
+        
+        # 7. Stok çıkış fişi tabloları oluştur
+        print("Stok çıkış fişi tabloları oluşturuluyor...")
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS stok_cikis_fis (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fis_no VARCHAR(50) NOT NULL UNIQUE,
+                tarih DATETIME DEFAULT CURRENT_TIMESTAMP,
+                depo_id INTEGER NOT NULL,
+                aciklama TEXT,
+                toplam_urun_adedi INTEGER DEFAULT 0,
+                toplam_adet INTEGER DEFAULT 0,
+                kullanici_id INTEGER,
+                kullanici_adi VARCHAR(50),
+                durum VARCHAR(20) DEFAULT 'TAMAMLANDI',
+                FOREIGN KEY (depo_id) REFERENCES depo (id),
+                FOREIGN KEY (kullanici_id) REFERENCES kullanici (id)
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS stok_cikis_fis_detay (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fis_id INTEGER NOT NULL,
+                urun_id INTEGER NOT NULL,
+                urun_adi VARCHAR(200),
+                cikis_adedi INTEGER NOT NULL,
+                birim_desi DECIMAL(8,2),
+                toplam_desi DECIMAL(8,2),
+                kargo_firmasi VARCHAR(100),
+                FOREIGN KEY (fis_id) REFERENCES stok_cikis_fis (id),
+                FOREIGN KEY (urun_id) REFERENCES urun (id)
+            )
+        ''')
+        
+        # 8. Kargo firmaları tablosu oluştur
+        print("Kargo firmaları tablosu oluşturuluyor...")
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS kargo_firmasi (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                firma_adi VARCHAR(100) NOT NULL UNIQUE,
+                aktif BOOLEAN DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Varsayılan kargo firmalarını ekle
+        cursor.execute("SELECT COUNT(*) FROM kargo_firmasi")
+        if cursor.fetchone()[0] == 0:
+            kargo_firmalari = [
+                'Yurtiçi Kargo', 'MNG Kargo', 'Aras Kargo', 'PTT Kargo', 'Sürat Kargo',
+                'UPS Kargo', 'DHL', 'TNT', 'Horoz Lojistik', 'Trendyol Express'
+            ]
+            
+            for firma in kargo_firmalari:
+                cursor.execute('INSERT INTO kargo_firmasi (firma_adi) VALUES (?)', (firma,))
         
         conn.commit()
         print("Veritabanı güncelleme başarıyla tamamlandı!")

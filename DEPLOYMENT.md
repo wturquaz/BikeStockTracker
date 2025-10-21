@@ -33,6 +33,7 @@ gunicorn==21.2.0
 ### Option 1: Render.com (Önerilen) ⭐
 
 **Avantajları:**
+
 - SQLite desteği
 - Otomatik HTTPS
 - Kolay setup
@@ -41,6 +42,7 @@ gunicorn==21.2.0
 **Deployment Adımları:**
 
 1. **GitHub'a Upload Edin**
+
    ```bash
    git init
    git add .
@@ -49,10 +51,10 @@ gunicorn==21.2.0
    git remote add origin https://github.com/kullaniciadi/BikeStockTracker.git
    git push -u origin main
    ```
-
 2. **Render Dosyaları Oluşturun**
 
    **`render.yaml`** (proje kök dizininde):
+
    ```yaml
    services:
      - type: web
@@ -66,25 +68,26 @@ gunicorn==21.2.0
    ```
 
    **`gunicorn_config.py`**:
+
    ```python
    bind = "0.0.0.0:10000"
    workers = 1
    timeout = 120
    ```
-
 3. **app.py Güncelleyin** (production ayarları):
+
    ```python
    import os
-   
+
    # ... existing code ...
-   
+
    if __name__ == '__main__':
        port = int(os.environ.get('PORT', 5000))
        debug = os.environ.get('DEBUG', 'False').lower() == 'true'
        app.run(debug=debug, host='0.0.0.0', port=port)
    ```
-
 4. **Render'da Deploy Edin**
+
    - render.com'a giriş yapın
    - "New +" → "Web Service"
    - GitHub repository'nizi bağlayın
@@ -93,6 +96,7 @@ gunicorn==21.2.0
 ### Option 2: Railway.app 🚂
 
 **Avantajları:**
+
 - GitHub entegrasyonu
 - Otomatik build
 - SQLite desteği
@@ -100,6 +104,7 @@ gunicorn==21.2.0
 **Deployment Adımları:**
 
 1. **railway.json Oluşturun**:
+
    ```json
    {
      "$schema": "https://railway.app/railway.schema.json",
@@ -111,8 +116,8 @@ gunicorn==21.2.0
      }
    }
    ```
-
 2. **Railway'de Deploy**:
+
    - railway.app'e giriş yapın
    - "New Project" → "Deploy from GitHub repo"
    - Repository'nizi seçin
@@ -121,6 +126,7 @@ gunicorn==21.2.0
 ### Option 3: Fly.io ✈️
 
 **Avantajları:**
+
 - SQLite persistent volume
 - Global deployment
 - Docker desteği
@@ -128,52 +134,53 @@ gunicorn==21.2.0
 **Deployment Adımları:**
 
 1. **Dockerfile Oluşturun**:
+
    ```dockerfile
    FROM python:3.11-slim
-   
+
    WORKDIR /app
-   
+
    COPY requirements.txt .
    RUN pip install -r requirements.txt
-   
+
    COPY . .
-   
+
    EXPOSE 8080
-   
+
    CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:8080"]
    ```
-
 2. **fly.toml Oluşturun**:
+
    ```toml
    app = "bikestock-app"
-   
+
    [build]
-   
+
    [env]
      PORT = "8080"
-   
+
    [[services]]
      http_checks = []
      internal_port = 8080
      processes = ["app"]
      protocol = "tcp"
      script_checks = []
-   
+
      [[services.ports]]
        force_https = true
        handlers = ["http"]
        port = 80
-   
+
      [[services.ports]]
        handlers = ["tls", "http"]
        port = 443
-   
+
    [[mounts]]
      source = "bikestock_data"
      destination = "/app/data"
    ```
-
 3. **Deploy Komutları**:
+
    ```bash
    flyctl auth login
    flyctl apps create bikestock-app
@@ -186,6 +193,7 @@ gunicorn==21.2.0
 ### 1. Güvenlik Ayarları
 
 **app.py** güncellemesi:
+
 ```python
 import os
 import secrets
@@ -203,6 +211,7 @@ def force_https():
 ### 2. Environment Variables
 
 Platform ayarlarında şu değişkenleri ekleyin:
+
 ```
 SECRET_KEY=your-secret-key-here
 DEBUG=False
@@ -212,6 +221,7 @@ DATABASE_URL=sqlite:///./stok_takip.db  # veya PostgreSQL URL
 ### 3. Database Backup
 
 **backup.py** oluşturun:
+
 ```python
 import sqlite3
 import os
@@ -220,7 +230,7 @@ from datetime import datetime
 def backup_database():
     source = 'stok_takip.db'
     backup_name = f'backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.db'
-    
+  
     if os.path.exists(source):
         # SQLite backup
         conn = sqlite3.connect(source)
@@ -239,13 +249,14 @@ if __name__ == "__main__":
 ### Custom Domain Ayarları
 
 1. **DNS Kayıtları**:
+
    ```
    Type: CNAME
    Name: www
    Value: your-app.render.com (veya platform URL'i)
    ```
-
 2. **Platform Ayarları**:
+
    - Render: Settings → Custom Domains
    - Railway: Settings → Domains
    - Fly.io: `flyctl certs create yourdomain.com`
@@ -268,6 +279,7 @@ flyctl logs
 ### Health Check
 
 **healthcheck.py**:
+
 ```python
 from flask import jsonify
 
@@ -294,12 +306,13 @@ Platformlar otomatik olarak yeni versiyonu deploy eder.
 ### Database Migration
 
 Veritabanı değişiklikleri için:
+
 ```python
 # migration.py
 def migrate_database():
     conn = sqlite3.connect('stok_takip.db')
     cursor = conn.cursor()
-    
+  
     try:
         # Yeni sütun ekleme örneği
         cursor.execute("ALTER TABLE urun ADD COLUMN yeni_sutun VARCHAR(100)")
@@ -316,20 +329,21 @@ def migrate_database():
 ### Yaygın Problemler
 
 1. **Database Erişimi**:
+
    ```python
    # Mutlak path kullanın
    import os
    db_path = os.path.join(os.path.dirname(__file__), 'stok_takip.db')
    conn = sqlite3.connect(db_path)
    ```
-
 2. **Static Files**:
+
    ```python
    # app.py'de
    app = Flask(__name__, static_folder='static', static_url_path='/static')
    ```
-
 3. **Memory Issues**:
+
    ```python
    # Database connection'ları kapatın
    try:

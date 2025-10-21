@@ -12,7 +12,7 @@
             <div class="card-body">
                 <form method="POST" id="urunEkleForm">
                     <div class="row">
-                        <div class="col-md-8">
+                        <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="urun_adi" class="form-label">
                                     <i class="bi bi-tag"></i> Ürün Adı <span class="text-danger">*</span>
@@ -21,7 +21,7 @@
                                        required maxlength="200" placeholder="Ürün adını girin...">
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="mb-3">
                                 <label for="jant_ebati" class="form-label">
                                     <i class="bi bi-circle"></i> Jant Ebatı <span class="text-danger">*</span>
@@ -30,16 +30,25 @@
                                        required maxlength="10" placeholder="örn: 26, 28...">
                             </div>
                         </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="desi" class="form-label">
+                                    <i class="bi bi-box"></i> Desi (kg)
+                                </label>
+                                <input type="number" class="form-control" id="desi" name="desi" 
+                                       step="0.01" min="0" max="999.99" value="0.00" placeholder="0.00">
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="mb-3">
                         <label for="barkod" class="form-label">
-                            <i class="bi bi-upc-scan"></i> Barkod (İsteğe bağlı)
+                            <i class="bi bi-upc-scan"></i> Barkod
                         </label>
                         <input type="text" class="form-control" id="barkod" name="barkod" 
-                               maxlength="100" placeholder="Ürün barkodunu girin...">
+                               maxlength="100" value="00" placeholder="Ürün barkodunu girin...">
                         <div class="form-text">
-                            Barkod boş bırakılırsa otomatik oluşturulacaktır.
+                            Varsayılan değer "00" olarak ayarlanmıştır. İsterseniz değiştirebilirsiniz.
                         </div>
                     </div>
                     
@@ -97,12 +106,19 @@
                             <li>Standart ebatları kullanın (20, 24, 26, 28)</li>
                             <li>Sadece sayı yazın (inch cinsinden)</li>
                         </ul>
+                        
+                        <h6>Desi:</h6>
+                        <ul>
+                            <li>Ağırlık kilogram cinsinden</li>
+                            <li>Kargo hesaplamalarında kullanılır</li>
+                            <li>Varsayılan 0.00 kg</li>
+                        </ul>
                     </div>
                     <div class="col-md-6">
                         <h6>Barkod:</h6>
                         <ul>
                             <li>Benzersiz olmalı</li>
-                            <li>Boş bırakılırsa otomatik oluşturulur</li>
+                            <li>Varsayılan olarak "00" gelir</li>
                             <li>QR kod veya standart barkod olabilir</li>
                         </ul>
                         
@@ -124,17 +140,18 @@
 <script>
 function formTemizle() {
     document.getElementById('urunEkleForm').reset();
+    // Form temizlendikten sonra varsayılan değerleri tekrar ayarlayalım
+    document.getElementById('barkod').value = '00';
+    document.getElementById('desi').value = '0.00';
 }
 
-// Barkod otomatik oluşturma önerisi
+// Barkod alanı için özel işlemler
 document.getElementById('urun_adi').addEventListener('input', function() {
-    const urunAdi = this.value;
     const barkodField = document.getElementById('barkod');
     
-    if (!barkodField.value && urunAdi.length > 3) {
-        // Ürün adından basit barkod önerisi oluştur
-        const suggestion = 'BK' + urunAdi.substring(0, 8).toUpperCase().replace(/[^A-Z0-9]/g, '') + Date.now().toString().slice(-4);
-        barkodField.placeholder = `Örnek: ${suggestion}`;
+    // Eğer barkod alanı boşsa veya sadece "00" varsa, "00" değerini koru
+    if (!barkodField.value || barkodField.value === '00') {
+        barkodField.value = '00';
     }
 });
 

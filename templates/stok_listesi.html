@@ -39,6 +39,7 @@
                                 <th>ID</th>
                                 <th>Ürün Adı</th>
                                 <th>Jant Ebatı</th>
+                                <th>Desi (kg)</th>
                                 <th>Barkod</th>
                                 <th>Bu Depoda</th>
                                 <th>Toplam Stok</th>
@@ -54,6 +55,9 @@
                                 <td>{{ stok.urun_adi }}</td>
                                 <td>
                                     <span class="badge bg-info">{{ stok.jant_ebati }}"</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-warning text-dark">{{ "%.2f"|format(stok.desi or 0) }} kg</span>
                                 </td>
                                 <td>
                                     <code>{{ stok.barkod or 'N/A' }}</code>

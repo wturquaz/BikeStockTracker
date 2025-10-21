@@ -117,6 +117,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('fis_listesi') }}">
+                            <i class="bi bi-receipt"></i> Fiş Listesi
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('stok_girisi') }}">
                             <i class="bi bi-arrow-up-circle"></i> Stok Girişi
                         </a>
@@ -144,6 +149,9 @@
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="{{ url_for('kullanici_listesi') }}">
                                 <i class="bi bi-people"></i> Kullanıcı Yönetimi
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('ayarlar') }}">
+                                <i class="bi bi-gear-fill"></i> Sistem Ayarları
                             </a></li>
                         </ul>
                     </li>

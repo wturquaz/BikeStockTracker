@@ -14,12 +14,13 @@
                     <!-- Orijinal değerler için gizli alanlar -->
                     <input type="hidden" id="original_urun_adi" value="{{ urun.urun_adi }}">
                     <input type="hidden" id="original_jant_ebati" value="{{ urun.jant_ebati }}">
-                    <input type="hidden" id="original_barkod" value="{{ urun.barkod or '' }}">
+                    <input type="hidden" id="original_desi" value="{{ urun.desi or 0 }}">
+                    <input type="hidden" id="original_barkod" value="{{ urun.barkod or '00' }}">
                     <input type="hidden" id="original_aciklama" value="{{ urun.aciklama or '' }}">
                     <input type="hidden" id="urun_id" value="{{ urun.id }}">
                     
                     <div class="row">
-                        <div class="col-md-8">
+                        <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="urun_adi" class="form-label">
                                     <i class="bi bi-tag"></i> Ürün Adı <span class="text-danger">*</span>
@@ -32,7 +33,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="mb-3">
                                 <label for="jant_ebati" class="form-label">
                                     <i class="bi bi-circle"></i> Jant Ebatı <span class="text-danger">*</span>
@@ -45,6 +46,19 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="desi" class="form-label">
+                                    <i class="bi bi-box"></i> Desi (kg)
+                                </label>
+                                <input type="number" class="form-control" id="desi" name="desi" 
+                                       step="0.01" min="0" max="999.99" value="{{ '%.2f'|format(urun.desi or 0) }}"
+                                       placeholder="0.00">
+                                <div class="invalid-feedback">
+                                    Geçerli bir desi değeri giriniz.
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="mb-3">
@@ -53,14 +67,14 @@
                         </label>
                         <div class="input-group">
                             <input type="text" class="form-control" id="barkod" name="barkod" 
-                                   maxlength="100" value="{{ urun.barkod or '' }}"
-                                   placeholder="Barkod numarası (opsiyonel)">
-                            <button class="btn btn-outline-secondary" type="button" onclick="barkodTemizle()" title="Barkodu Temizle">
-                                <i class="bi bi-x"></i>
+                                   maxlength="100" value="{{ urun.barkod or '00' }}"
+                                   placeholder="Barkod numarası">
+                            <button class="btn btn-outline-secondary" type="button" onclick="barkodSifirla()" title="Barkodu 00'a Sıfırla">
+                                <i class="bi bi-arrow-repeat"></i>
                             </button>
                         </div>
                         <div class="form-text">
-                            <i class="bi bi-info-circle"></i> Barkod benzersiz olmalıdır. Boş bırakılabilir.
+                            <i class="bi bi-info-circle"></i> Barkod benzersiz olmalıdır. Eğer boş bırakılırsa "00" olarak ayarlanır.
                         </div>
                     </div>
                     
@@ -181,6 +195,7 @@ function formSifirla() {
     // Orijinal değerleri gizli input'lardan al
     document.getElementById('urun_adi').value = document.getElementById('original_urun_adi').value;
     document.getElementById('jant_ebati').value = document.getElementById('original_jant_ebati').value;
+    document.getElementById('desi').value = document.getElementById('original_desi').value;
     document.getElementById('barkod').value = document.getElementById('original_barkod').value;
     document.getElementById('aciklama').value = document.getElementById('original_aciklama').value;
     
@@ -189,9 +204,9 @@ function formSifirla() {
     karakterSayisiGuncelle();
 }
 
-// Barkod temizleme
-function barkodTemizle() {
-    document.getElementById('barkod').value = '';
+// Barkod sıfırlama
+function barkodSifirla() {
+    document.getElementById('barkod').value = '00';
     document.getElementById('barkod').focus();
 }
 

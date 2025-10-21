@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}Fiş Detayı - {{ fis.fis_no }}{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-12">
+        <!-- Fiş Başlığı -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0"><i class="bi bi-receipt"></i> Stok Çıkış Fişi</h5>
+                    <small>{{ fis.fis_no }}</small>
+                </div>
+                <div>
+                    <button onclick="window.print()" class="btn btn-light btn-sm">
+                        <i class="bi bi-printer"></i> Yazdır
+                    </button>
+                    <a href="{{ url_for('fis_listesi') }}" class="btn btn-light btn-sm">
+                        <i class="bi bi-arrow-left"></i> Geri
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-info-circle"></i> Fiş Bilgileri</h6>
+                        <table class="table table-sm table-borderless">
+                            <tr>
+                                <td><strong>Fiş No:</strong></td>
+                                <td>{{ fis.fis_no }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Tarih:</strong></td>
+                                <td>
+                                    {% if fis.tarih %}
+                                        {% set tarih_str = fis.tarih.split(' ')[0] if ' ' in fis.tarih else fis.tarih %}
+                                        {{ tarih_str.split('-')[2] }}.{{ tarih_str.split('-')[1] }}.{{ tarih_str.split('-')[0] }}
+                                        {% if ' ' in fis.tarih %}
+                                            {{ fis.tarih.split(' ')[1].split(':')[0] }}:{{ fis.tarih.split(' ')[1].split(':')[1] }}
+                                        {% endif %}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Depo:</strong></td>
+                                <td><span class="badge bg-primary">{{ fis.depo_adi }}</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Durum:</strong></td>
+                                <td><span class="badge bg-success">{{ fis.durum }}</span></td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-person"></i> İşlem Bilgileri</h6>
+                        <table class="table table-sm table-borderless">
+                            <tr>
+                                <td><strong>Kullanıcı:</strong></td>
+                                <td>{{ fis.kullanici_adi }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Toplam Ürün Çeşidi:</strong></td>
+                                <td><span class="badge bg-info">{{ fis.toplam_urun_adedi }}</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Toplam Adet:</strong></td>
+                                <td><span class="badge bg-success">{{ fis.toplam_adet }}</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Toplam Desi:</strong></td>
+                                <td><span class="badge bg-warning text-dark">{{ "%.2f"|format(detaylar|sum(attribute='toplam_desi') or 0) }} kg</span></td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                
+                {% if fis.aciklama %}
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <h6><i class="bi bi-chat-text"></i> Açıklama</h6>
+                        <div class="alert alert-info">
+                            {{ fis.aciklama }}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Fiş Detayları -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-list-ul"></i> Çıkış Yapılan Ürünler</h6>
+            </div>
+            <div class="card-body">
+                {% if detaylar %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>#</th>
+                                <th>Ürün Adı</th>
+                                <th>Çıkış Adedi</th>
+                                <th>Birim Desi</th>
+                                <th>Toplam Desi</th>
+                                <th>Kargo Firması</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for detay in detaylar %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>
+                                    <strong>{{ detay.urun_adi }}</strong>
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">{{ detay.cikis_adedi }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">{{ "%.2f"|format(detay.birim_desi or 0) }} kg</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-warning text-dark">{{ "%.2f"|format(detay.toplam_desi or 0) }} kg</span>
+                                </td>
+                                <td>
+                                    {% if detay.kargo_firma_adi %}
+                                        <span class="badge bg-secondary">{{ detay.kargo_kisa_adi or detay.kargo_firma_adi }}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-secondary">
+                            <tr>
+                                <th colspan="2">Toplam:</th>
+                                <th><span class="badge bg-success">{{ detaylar|sum(attribute='cikis_adedi') }}</span></th>
+                                <th>-</th>
+                                <th><span class="badge bg-warning text-dark">{{ "%.2f"|format(detaylar|sum(attribute='toplam_desi') or 0) }} kg</span></th>
+                                <th>-</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-exclamation-triangle fs-1 text-warning"></i>
+                    <p class="text-muted mt-2">Bu fişte ürün detayı bulunamadı.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style media="print">
+    .btn, .card-header .btn-group {
+        display: none !important;
+    }
+    
+    @page {
+        margin: 1cm;
+    }
+    
+    .card {
+        border: 1px solid #000 !important;
+        box-shadow: none !important;
+    }
+    
+    .card-header {
+        background-color: #f8f9fa !important;
+        color: #000 !important;
+    }
+    
+    .badge {
+        border: 1px solid #000 !important;
+        color: #000 !important;
+        background-color: #fff !important;
+    }
+</style>
+{% endblock %}

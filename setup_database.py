@@ -40,6 +40,7 @@ def create_complete_database():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 urun_adi VARCHAR(200) NOT NULL,
                 jant_ebati VARCHAR(20),
+                desi DECIMAL(8,2) DEFAULT 0.00,
                 aciklama TEXT,
                 barkod VARCHAR(100) UNIQUE,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -101,6 +102,53 @@ def create_complete_database():
             )
         ''')
         
+        # 6. Stok çıkış fişi tablosu
+        print("Stok çıkış fişi tablosu oluşturuluyor...")
+        cursor.execute('''
+            CREATE TABLE stok_cikis_fis (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fis_no VARCHAR(50) NOT NULL UNIQUE,
+                tarih DATETIME DEFAULT CURRENT_TIMESTAMP,
+                depo_id INTEGER NOT NULL,
+                aciklama TEXT,
+                toplam_urun_adedi INTEGER DEFAULT 0,
+                toplam_adet INTEGER DEFAULT 0,
+                kullanici_id INTEGER,
+                kullanici_adi VARCHAR(50),
+                durum VARCHAR(20) DEFAULT 'TAMAMLANDI',
+                FOREIGN KEY (depo_id) REFERENCES depo (id),
+                FOREIGN KEY (kullanici_id) REFERENCES kullanici (id)
+            )
+        ''')
+        
+        # 7. Stok çıkış fişi detay tablosu
+        print("Stok çıkış fişi detay tablosu oluşturuluyor...")
+        cursor.execute('''
+            CREATE TABLE stok_cikis_fis_detay (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fis_id INTEGER NOT NULL,
+                urun_id INTEGER NOT NULL,
+                urun_adi VARCHAR(200),
+                cikis_adedi INTEGER NOT NULL,
+                birim_desi DECIMAL(8,2),
+                toplam_desi DECIMAL(8,2),
+                kargo_firmasi VARCHAR(100),
+                FOREIGN KEY (fis_id) REFERENCES stok_cikis_fis (id),
+                FOREIGN KEY (urun_id) REFERENCES urun (id)
+            )
+        ''')
+        
+        # 8. Kargo firmaları tablosu
+        print("Kargo firmaları tablosu oluşturuluyor...")
+        cursor.execute('''
+            CREATE TABLE kargo_firmasi (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                firma_adi VARCHAR(100) NOT NULL UNIQUE,
+                aktif BOOLEAN DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
         # Varsayılan veriler ekle
         print("Varsayılan veriler ekleniyor...")
         
@@ -140,7 +188,28 @@ def create_complete_database():
         cursor.execute('INSERT INTO urun_stok (urun_id, depo_id, stok_adedi) VALUES (3, 1, 8)')
         
         conn.commit()
-        print("✅ Veritabanı başarıyla oluşturuldu!")
+        # Varsayılan kargo firmalarını ekle
+        print("Varsayılan kargo firmaları ekleniyor...")
+        kargo_firmalari = [
+            'Yurtiçi Kargo',
+            'MNG Kargo',
+            'Aras Kargo',
+            'PTT Kargo',
+            'Sürat Kargo',
+            'UPS Kargo',
+            'DHL',
+            'TNT',
+            'Horoz Lojistik',
+            'Trendyol Express'
+        ]
+        
+        for firma in kargo_firmalari:
+            cursor.execute(
+                'INSERT INTO kargo_firmasi (firma_adi) VALUES (?)',
+                (firma,)
+            )
+        
+        print(f"✅ {len(kargo_firmalari)} kargo firması eklendi")
         
         # Test
         cursor.execute("SELECT COUNT(*) FROM kullanici")

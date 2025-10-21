@@ -1,104 +1,118 @@
 {% extends "base.html" %}
 
-{% block title %}Stok Çıkışı{% endblock %}
+{% block title %}Stok Çıkışı - Fiş Sistemi{% endblock %}
 
 {% block content %}
 <div class="row mt-4">
-    <div class="col-md-8 mx-auto">
+    <div class="col-12">
         <div class="card">
-            <div class="card-header">
-                <h5><i class="bi bi-arrow-down-circle"></i> Stok Çıkışı</h5>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h5><i class="bi bi-box-arrow-right"></i> Stok Çıkışı - Fiş Sistemi</h5>
+                    <small class="text-muted">Ürünleri sepete ekleyip toplu çıkış yapabilirsiniz</small>
+                </div>
+                <div>
+                    <a href="{{ url_for('fis_listesi') }}" class="btn btn-outline-primary">
+                        <i class="bi bi-receipt"></i> Fiş Listesi
+                    </a>
+                </div>
             </div>
             <div class="card-body">
-                <form method="POST" id="stokCikisForm">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="depo_id" class="form-label">
-                                    <i class="bi bi-building"></i> Depo
-                                </label>
-                                <select class="form-select" id="depo_id" name="depo_id" required>
-                                    <option value="">Depo seçiniz...</option>
-                                    {% for depo in depolar %}
-                                        <option value="{{ depo.id }}">{{ depo.depo_adi }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="cikis_adedi" class="form-label">
-                                    <i class="bi bi-123"></i> Çıkış Adedi
-                                </label>
-                                <input type="number" class="form-control" id="cikis_adedi" name="cikis_adedi" 
-                                       min="1" required>
-                            </div>
-                        </div>
+                <!-- Depo ve Açıklama -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label for="depo_id" class="form-label">
+                            <i class="bi bi-building"></i> Depo <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="depo_id" required>
+                            <option value="">Depo seçiniz...</option>
+                            {% for depo in depolar %}
+                                <option value="{{ depo.id }}">{{ depo.depo_adi }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
-                    
-                    <div class="mb-3">
+                    <div class="col-md-6">
+                        <label for="aciklama" class="form-label">
+                            <i class="bi bi-chat-text"></i> Fiş Açıklaması
+                        </label>
+                        <input type="text" class="form-control" id="aciklama" 
+                               placeholder="Çıkış sebebi..." maxlength="200">
+                    </div>
+                </div>
+
+                <!-- Ürün Arama -->
+                <div class="row mb-4">
+                    <div class="col-12">
                         <label for="urun_arama" class="form-label">
-                            <i class="bi bi-search"></i> Ürün Arama (İsim veya Barkod)
+                            <i class="bi bi-search"></i> Ürün Ara ve Sepete Ekle
                         </label>
                         <div class="search-container">
                             <input type="text" class="form-control" id="urun_arama" 
-                                   placeholder="Ürün adı veya barkod ile arayın...">
+                                   placeholder="Ürün adı veya barkod ile arayın..." 
+                                   autocomplete="off">
                             <div class="search-results" id="searchResults"></div>
                         </div>
-                        <input type="hidden" id="urun_id" name="urun_id" required>
-                        <div class="mt-2">
-                            <small class="text-muted">Seçili ürün: <span id="secili_urun" class="fw-bold">Henüz seçilmedi</span></small>
+                    </div>
+                </div>
+
+                <!-- Sepet -->
+                <div class="card border-warning mb-4">
+                    <div class="card-header bg-warning bg-opacity-10">
+                        <h6 class="mb-0">
+                            <i class="bi bi-cart3"></i> Çıkış Sepeti 
+                            <span class="badge bg-warning text-dark" id="sepetSayisi">0</span>
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="sepetBos" class="text-center text-muted py-4">
+                            <i class="bi bi-cart-x fs-1"></i>
+                            <p class="mt-2">Sepet boş. Ürün aramaya başlayın!</p>
+                        </div>
+                        <div id="sepetDolu" style="display: none;">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Ürün</th>
+                                            <th>Mevcut Stok</th>
+                                            <th>Çıkış Adedi</th>
+                                            <th>Desi</th>
+                                            <th>Kargo Firması</th>
+                                            <th>İşlem</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="sepetTablo">
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="row mt-3">
+                                <div class="col-md-8">
+                                    <div class="d-flex gap-2">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="sepetTemizle()">
+                                            <i class="bi bi-trash"></i> Sepeti Temizle
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <div class="card border-info">
+                                        <div class="card-body p-2">
+                                            <small class="text-muted">Toplam:</small><br>
+                                            <strong id="toplamAdet">0</strong> adet<br>
+                                            <strong id="toplamDesi">0.00</strong> kg
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="aciklama" class="form-label">
-                            <i class="bi bi-chat-text"></i> Açıklama (İsteğe bağlı)
-                        </label>
-                        <textarea class="form-control" id="aciklama" name="aciklama" rows="3" 
-                                  placeholder="Çıkış sebebi veya notlar..."></textarea>
-                    </div>
-                    
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <button type="button" class="btn btn-secondary" onclick="formTemizle()">
-                            <i class="bi bi-arrow-clockwise"></i> Temizle
-                        </button>
-                        <button type="submit" class="btn btn-danger">
-                            <i class="bi bi-arrow-down-circle"></i> Stok Çıkışı Yap
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
+                </div>
 
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h6><i class="bi bi-info-circle"></i> Kullanım Kılavuzu</h6>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>Arama Özellikleri:</h6>
-                        <ul>
-                            <li>Ürün adına göre arama yapabilirsiniz</li>
-                            <li>Barkod ile arama yapabilirsiniz</li>
-                            <li>En az 2 karakter girmelisiniz</li>
-                            <li>Arama sonuçları otomatik olarak görünür</li>
-                        </ul>
-                    </div>
-                    <div class="col-md-6">
-                        <h6>Stok Çıkış İşlemi:</h6>
-                        <ul>
-                            <li>Önce depo seçiniz</li>
-                            <li>Ürünü arayın ve seçin</li>
-                            <li>Çıkış adedini belirtin</li>
-                            <li>Yetersiz stok durumunda işlem iptal edilir</li>
-                        </ul>
-                    </div>
+                <!-- Çıkış Butonu -->
+                <div class="d-grid">
+                    <button type="button" class="btn btn-success btn-lg" id="cikisYapBtn" 
+                            onclick="stokCikisiYap()" disabled>
+                        <i class="bi bi-check-circle"></i> Stok Çıkışı Yap ve Fiş Oluştur
+                    </button>
                 </div>
             </div>
         </div>
@@ -108,47 +122,30 @@
 
 {% block scripts %}
 <script>
-let searchTimeout;
+var sepet = [];
+var searchTimeout;
 
+// Ürün arama
 document.getElementById('urun_arama').addEventListener('input', function() {
-    const query = this.value;
-    const resultsDiv = document.getElementById('searchResults');
+    const query = this.value.trim();
+    
+    clearTimeout(searchTimeout);
     
     if (query.length < 2) {
-        resultsDiv.style.display = 'none';
+        document.getElementById('searchResults').style.display = 'none';
         return;
     }
     
-    clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {
-        fetch(`/api/urun_ara?q=${encodeURIComponent(query)}`)
+        const depoId = document.getElementById('depo_id').value;
+        const url = depoId ? 
+            `/api/urun_ara?q=${encodeURIComponent(query)}&depo_id=${depoId}` :
+            `/api/urun_ara?q=${encodeURIComponent(query)}`;
+            
+        fetch(url)
             .then(response => response.json())
             .then(data => {
-                resultsDiv.innerHTML = '';
-                
-                if (data.length === 0) {
-                    resultsDiv.innerHTML = '<div class="search-result-item">Ürün bulunamadı</div>';
-                    resultsDiv.style.display = 'block';
-                    return;
-                }
-                
-                data.forEach(urun => {
-                    const item = document.createElement('div');
-                    item.className = 'search-result-item';
-                    item.innerHTML = `
-                        <div class="fw-bold">${urun.urun_adi}</div>
-                        <small class="text-muted">
-                            Barkod: ${urun.barkod || 'N/A'} | 
-                            Jant: ${urun.jant_ebati}"
-                        </small>
-                    `;
-                    item.addEventListener('click', () => {
-                        selectUrun(urun);
-                    });
-                    resultsDiv.appendChild(item);
-                });
-                
-                resultsDiv.style.display = 'block';
+                showSearchResults(data);
             })
             .catch(error => {
                 console.error('Arama hatası:', error);
@@ -156,27 +153,305 @@ document.getElementById('urun_arama').addEventListener('input', function() {
     }, 300);
 });
 
-function selectUrun(urun) {
-    document.getElementById('urun_id').value = urun.id;
-    document.getElementById('urun_arama').value = urun.urun_adi;
-    document.getElementById('secili_urun').textContent = 
-        `${urun.urun_adi} (${urun.barkod || 'N/A'})`;
-    document.getElementById('searchResults').style.display = 'none';
+// Arama sonuçlarını göster
+function showSearchResults(urunler) {
+    const resultsDiv = document.getElementById('searchResults');
+    
+    if (urunler.length === 0) {
+        resultsDiv.innerHTML = '<div class="search-result-item text-muted">Ürün bulunamadı</div>';
+    } else {
+        resultsDiv.innerHTML = urunler.map(urun => {
+            const stokInfo = urun.stok_adedi > 0 ? 
+                `<span class="badge bg-success">${urun.stok_adedi} adet</span>` : 
+                `<span class="badge bg-danger">Stok yok</span>`;
+            
+            return `
+                <div class="search-result-item ${urun.stok_adedi <= 0 ? 'disabled' : ''}" 
+                     onclick="${urun.stok_adedi > 0 ? `urunSec(${urun.id}, '${urun.urun_adi.replace(/'/g, "\\'")}', '${urun.jant_ebati}', ${urun.desi || 0}, '${urun.barkod || ''}', ${urun.stok_adedi})` : 'void(0)'}">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <strong>${urun.urun_adi}</strong><br>
+                            <small class="text-muted">Jant: ${urun.jant_ebati}" | Desi: ${(urun.desi || 0).toFixed(2)} kg | Barkod: ${urun.barkod || 'N/A'}</small>
+                        </div>
+                        <div class="text-end">
+                            ${stokInfo}
+                            ${urun.stok_adedi > 0 ? '<span class="badge bg-primary ms-1">Seç</span>' : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    resultsDiv.style.display = 'block';
 }
 
-function formTemizle() {
-    document.getElementById('stokCikisForm').reset();
-    document.getElementById('urun_id').value = '';
-    document.getElementById('secili_urun').textContent = 'Henüz seçilmedi';
-    document.getElementById('searchResults').style.display = 'none';
+// Ürün seç ve stok kontrol et
+function urunSec(urunId, urunAdi, jantEbati, desi, barkod, mevcutStok = null) {
+    const depoId = document.getElementById('depo_id').value;
+    
+    if (!depoId) {
+        alert('Önce depo seçiniz!');
+        return;
+    }
+    
+    // Sepette zaten var mı kontrol et
+    if (sepet.some(item => item.urun_id === urunId)) {
+        alert('Bu ürün zaten sepette!');
+        return;
+    }
+    
+    // Eğer stok bilgisi verilmişse direkt kullan, yoksa API'den al
+    if (mevcutStok !== null) {
+        if (mevcutStok <= 0) {
+            alert('Bu üründe seçilen depoda stok bulunmuyor!');
+            return;
+        }
+        
+        // Sepete ekle
+        sepet.push({
+            urun_id: urunId,
+            urun_adi: urunAdi,
+            jant_ebati: jantEbati,
+            desi: desi,
+            barkod: barkod,
+            mevcut_stok: mevcutStok,
+            adet: 1,
+            kargo_firmasi_id: window.kargoFirmalari?.varsayilan_id || null
+        });
+        
+        sepetGuncelle();
+        
+        // Arama temizle
+        document.getElementById('urun_arama').value = '';
+        document.getElementById('searchResults').style.display = 'none';
+        return;
+    }
+    
+    // API'den stok kontrol et (eski yöntem - fallback)
+    fetch(`/api/urun_stok_durumu/${urunId}`)
+        .then(response => response.json())
+        .then(stoklar => {
+            // Seçilen depo ID'sine göre stok bul
+            const secilenDepoId = parseInt(depoId);
+            const secilenDepoAdi = document.getElementById('depo_id').selectedOptions[0].text;
+            const secilenDepoStok = stoklar.find(s => s.depo_adi === secilenDepoAdi);
+            const stokAdedi = secilenDepoStok ? secilenDepoStok.stok_adedi : 0;
+            
+            if (stokAdedi <= 0) {
+                alert(`Bu üründe ${secilenDepoAdi} deposunda stok bulunmuyor!`);
+                return;
+            }
+            
+            // Sepete ekle
+            sepet.push({
+                urun_id: urunId,
+                urun_adi: urunAdi,
+                jant_ebati: jantEbati,
+                desi: desi,
+                barkod: barkod,
+                mevcut_stok: stokAdedi,
+                adet: 1,
+                kargo_firmasi_id: window.kargoFirmalari?.varsayilan_id || null
+            });
+            
+            sepetGuncelle();
+            
+            // Arama temizle
+            document.getElementById('urun_arama').value = '';
+            document.getElementById('searchResults').style.display = 'none';
+        })
+        .catch(error => {
+            console.error('Stok kontrol hatası:', error);
+            alert('Stok bilgisi alınamadı!');
+        });
 }
 
-// Sayfa dışında tıklandığında arama sonuçlarını gizle
-document.addEventListener('click', function(event) {
-    const searchContainer = document.querySelector('.search-container');
-    if (!searchContainer.contains(event.target)) {
+// Sepeti güncelle
+function sepetGuncelle() {
+    const sepetBos = document.getElementById('sepetBos');
+    const sepetDolu = document.getElementById('sepetDolu');
+    const sepetTablo = document.getElementById('sepetTablo');
+    const cikisBtn = document.getElementById('cikisYapBtn');
+    
+    if (sepet.length === 0) {
+        sepetBos.style.display = 'block';
+        sepetDolu.style.display = 'none';
+        cikisBtn.disabled = true;
+    } else {
+        sepetBos.style.display = 'none';
+        sepetDolu.style.display = 'block';
+        cikisBtn.disabled = false;
+        
+        // Tabloyu doldur
+        sepetTablo.innerHTML = sepet.map((item, index) => `
+            <tr>
+                <td>
+                    <strong>${item.urun_adi}</strong><br>
+                    <small class="text-muted">Jant: ${item.jant_ebati}" | Barkod: ${item.barkod || 'N/A'}</small>
+                </td>
+                <td>
+                    <span class="badge bg-info">${item.mevcut_stok}</span>
+                </td>
+                <td>
+                    <input type="number" class="form-control form-control-sm" 
+                           value="${item.adet}" min="1" max="${item.mevcut_stok}"
+                           onchange="adetDegistir(${index}, this.value)" style="width: 80px;">
+                </td>
+                <td>
+                    <span class="badge bg-warning text-dark">${(item.desi * item.adet).toFixed(2)} kg</span>
+                </td>
+                <td>
+                    <select class="form-select form-select-sm" onchange="kargoFirmasiDegistir(${index}, this.value)" style="width: 150px;">
+                        <option value="">Kargo Firması Seçin</option>
+                        ${window.kargoFirmalari.firmalar.map(firma => 
+                            `<option value="${firma.id}" ${item.kargo_firmasi_id == firma.id ? 'selected' : ''}>
+                                ${firma.kisa_adi || firma.firma_adi}
+                            </option>`
+                        ).join('')}
+                    </select>
+                </td>
+                <td>
+                    <button type="button" class="btn btn-outline-danger btn-sm" 
+                            onclick="sepettenCikar(${index})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+    
+    // Sepet sayısını güncelle
+    document.getElementById('sepetSayisi').textContent = sepet.length;
+    
+    // Toplamları hesapla
+    const toplamAdet = sepet.reduce((sum, item) => sum + item.adet, 0);
+    const toplamDesi = sepet.reduce((sum, item) => sum + (item.desi * item.adet), 0);
+    
+    document.getElementById('toplamAdet').textContent = toplamAdet;
+    document.getElementById('toplamDesi').textContent = toplamDesi.toFixed(2);
+}
+
+// Adet değiştir
+function adetDegistir(index, yeniAdet) {
+    const adet = parseInt(yeniAdet);
+    if (adet > 0 && adet <= sepet[index].mevcut_stok) {
+        sepet[index].adet = adet;
+        sepetGuncelle();
+    } else {
+        alert(`Geçersiz adet! (1-${sepet[index].mevcut_stok} arası)`);
+        sepetGuncelle(); // Formu eski değere döndür
+    }
+}
+
+// Sepetten çıkar
+function sepettenCikar(index) {
+    sepet.splice(index, 1);
+    sepetGuncelle();
+}
+
+// Sepeti temizle
+function sepetTemizle() {
+    if (confirm('Sepetteki tüm ürünler silinecek. Emin misiniz?')) {
+        sepet = [];
+        sepetGuncelle();
+    }
+}
+
+// Stok çıkışı yap
+function stokCikisiYap() {
+    const depoId = document.getElementById('depo_id').value;
+    const aciklama = document.getElementById('aciklama').value.trim();
+    
+    if (!depoId) {
+        alert('Depo seçiniz!');
+        return;
+    }
+    
+    if (sepet.length === 0) {
+        alert('Sepet boş!');
+        return;
+    }
+    
+    if (confirm(`${sepet.length} ürün için stok çıkışı yapılacak. Emin misiniz?`)) {
+        const data = {
+            depo_id: depoId,
+            aciklama: aciklama,
+            items: sepet
+        };
+        
+        fetch('/stok_cikisi', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                alert(`Başarı! ${result.message}`);
+                sepet = [];
+                sepetGuncelle();
+                document.getElementById('aciklama').value = '';
+                
+                // Fiş detayına git
+                if (confirm('Oluşturulan fişi görüntülemek ister misiniz?')) {
+                    window.open(`/fis/${result.fis_id}`, '_blank');
+                }
+            } else {
+                alert(`Hata: ${result.message}`);
+            }
+        })
+        .catch(error => {
+            console.error('Çıkış hatası:', error);
+            alert('Stok çıkışı yapılırken hata oluştu!');
+        });
+    }
+}
+
+// Kargo firması değiştir
+function kargoFirmasiDegistir(index, kargoFirmasiId) {
+    sepet[index].kargo_firmasi_id = kargoFirmasiId;
+    // Sepeti güncelleme gerekli değil, sadece data'yı değiştiriyoruz
+}
+
+// Kargo firmalarını yükle
+window.kargoFirmalari = { firmalar: [], varsayilan_id: null };
+
+function kargoFirmalariniYukle() {
+    fetch('/api/kargo_firmalari')
+        .then(response => response.json())
+        .then(data => {
+            window.kargoFirmalari = data;
+        })
+        .catch(error => {
+            console.error('Kargo firmaları yüklenirken hata:', error);
+        });
+}
+
+// Sayfa dışında tıklanınca arama sonuçlarını gizle
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.search-container')) {
         document.getElementById('searchResults').style.display = 'none';
     }
 });
+
+// Sayfa yüklendiğinde kargo firmalarını yükle
+document.addEventListener('DOMContentLoaded', function() {
+    kargoFirmalariniYukle();
+});
 </script>
+
+<style>
+.search-result-item.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background-color: #f8f9fa;
+}
+
+.search-result-item.disabled:hover {
+    background-color: #f8f9fa;
+}
+</style>
 {% endblock %}
