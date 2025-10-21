@@ -13,7 +13,7 @@ BikeStockTracker/
 ├── app.py
 ├── requirements.txt
 ├── stok_takip.db
-├── upgrade_database.py
+├── safe_upgrade_database.py
 ├── templates/
 ├── README.md
 └── deployment dosyaları (aşağıda)

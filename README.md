@@ -42,7 +42,7 @@ pip install -r requirements.txt
 
 3. Veritabanını güncelleyin:
 ```bash
-python upgrade_database.py
+python safe_upgrade_database.py
 ```
 
 4. Uygulamayı başlatın:

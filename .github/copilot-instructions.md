@@ -19,7 +19,7 @@ kullanici (users) → islem_gecmisi (transaction history)
 ### Database Migration Strategy
 - **Never use `setup_database.py`** in production (deletes existing data)
 - **Always use `safe_upgrade_database.py`** for deployments (preserves data)
-- **Local development**: Use `upgrade_database.py` for schema updates
+- **Local development**: Use `safe_upgrade_database.py` for schema updates
 
 ## Critical Workflows
 
@@ -29,7 +29,7 @@ kullanici (users) → islem_gecmisi (transaction history)
 python safe_upgrade_database.py
 
 # Local development
-python upgrade_database.py
+python safe_upgrade_database.py
 
 # Fresh install only
 python setup_database.py  # WARNING: Deletes all data
@@ -108,7 +108,7 @@ Every stock operation must create an `islem_gecmisi` record with:
 
 ### Platform-Specific Setup
 - **Render.com**: Uses `render.yaml` + `safe_upgrade_database.py` in build
-- **Railway.app**: Uses `railway.json` + `upgrade_database.py` in deploy
+- **Railway.app**: Uses `railway.json` + `safe_upgrade_database.py` in deploy
 - **Gunicorn**: Single worker configuration for SQLite compatibility
 
 ### Environment Variables
