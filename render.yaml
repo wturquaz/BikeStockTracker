@@ -1,8 +1,8 @@
 services:
   - type: web
-    name: bikestock
+    name: bikestock-v2
     env: python
-    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt && ls -la && python safe_upgrade_database.py"
+    buildCommand: "chmod +x build.sh && ./build.sh"
     startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT"
     envVars:
       - key: PYTHON_VERSION
