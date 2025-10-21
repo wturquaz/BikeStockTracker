@@ -5,10 +5,12 @@ import hashlib
 def upgrade_database():
     """Database'i güvenli şekilde güncelle - Render.com için"""
     db_path = 'stok_takip.db'
-    print(f"Database upgrade başlatılıyor: {db_path}")
+    print(f"🚀 Database upgrade başlatılıyor: {db_path}")
+    print(f"⏰ Zaman: {datetime.now()}")
     
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
+    print("✅ Database bağlantısı kuruldu")
     
     try:
         # Foreign key desteğini aç
@@ -187,6 +189,8 @@ def upgrade_database():
         print(f"📊 Toplam tablo sayısı: {len(tables)}")
         for table in tables:
             print(f"   - {table[0]}")
+        
+        print("🎉 Database upgrade başarıyla tamamlandı!")
             
     except Exception as e:
         print(f"❌ Database upgrade hatası: {e}")
@@ -194,6 +198,9 @@ def upgrade_database():
         raise e
     finally:
         conn.close()
+        print("🔒 Database bağlantısı kapatıldı")
 
 if __name__ == "__main__":
+    print("🔧 BikeStock Database Upgrade Script - Render.com")
+    print("=" * 50)
     upgrade_database()
