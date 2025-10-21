@@ -3,6 +3,6 @@
     "builder": "nixpacks"
   },
   "deploy": {
-    "startCommand": "python upgrade_database.py && gunicorn app:app"
+    "startCommand": "python safe_upgrade_database.py && gunicorn app:app"
   }
 }
