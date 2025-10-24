@@ -19,6 +19,10 @@ import sqlite3
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(16))
 
+# Cache'i devre dışı bırak
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+
 # Database connection
 def get_db_connection():
     """SQLite veritabanı bağlantısı oluşturur ve Row factory ayarlar"""
@@ -177,7 +181,7 @@ def stok_listesi():
             u.jant_ebati,
             COALESCE(u.desi, 0.00) as desi,
             u.barkod,
-            us.stok_adedi,
+            us.miktar as stok_adedi,
             d.depo_adi,
             us.depo_id
         FROM urun u
@@ -192,9 +196,9 @@ def stok_listesi():
             u.id,
             u.urun_adi,
             COALESCE(u.desi, 0.00) as desi,
-            SUM(COALESCE(us.stok_adedi, 0)) as toplam_stok,
+            SUM(COALESCE(us.miktar, 0)) as toplam_stok,
             COUNT(us.depo_id) as depo_sayisi,
-            GROUP_CONCAT(d.depo_adi || ': ' || COALESCE(us.stok_adedi, 0)) as depo_detay
+            GROUP_CONCAT(d.depo_adi || ': ' || COALESCE(us.miktar, 0)) as depo_detay
         FROM urun u
         LEFT JOIN urun_stok us ON u.id = us.urun_id
         LEFT JOIN depo d ON us.depo_id = d.id
@@ -209,9 +213,9 @@ def stok_listesi():
     depo_istatistik = conn.execute('''
         SELECT 
             COUNT(*) as toplam_urun,
-            SUM(CASE WHEN us.stok_adedi > 0 THEN 1 ELSE 0 END) as stokta_olan,
-            SUM(CASE WHEN us.stok_adedi = 0 OR us.stok_adedi IS NULL THEN 1 ELSE 0 END) as stokta_olmayan,
-            SUM(COALESCE(us.stok_adedi, 0)) as toplam_stok_adedi
+            SUM(CASE WHEN us.miktar > 0 THEN 1 ELSE 0 END) as stokta_olan,
+            SUM(CASE WHEN us.miktar = 0 OR us.miktar IS NULL THEN 1 ELSE 0 END) as stokta_olmayan,
+            SUM(COALESCE(us.miktar, 0)) as toplam_stok_adedi
         FROM urun u
         LEFT JOIN urun_stok us ON u.id = us.urun_id AND us.depo_id = ?
     ''', (secili_depo_id,)).fetchone()
@@ -242,7 +246,7 @@ def urun_ara():
         # Depoya göre stok bilgisi ile birlikte ara
         urunler = conn.execute('''
             SELECT u.id, u.urun_adi, u.barkod, u.jant_ebati, COALESCE(u.desi, 0.00) as desi,
-                   COALESCE(us.stok_adedi, 0) as stok_adedi
+                   COALESCE(us.miktar, 0) as stok_adedi
             FROM urun u
             LEFT JOIN urun_stok us ON u.id = us.urun_id AND us.depo_id = ?
             WHERE (u.urun_adi LIKE ? OR u.barkod LIKE ?)
@@ -272,7 +276,7 @@ def urun_stok_durumu(urun_id):
     stoklar = conn.execute('''
         SELECT 
             d.depo_adi,
-            COALESCE(us.stok_adedi, 0) as stok_adedi
+            COALESCE(us.miktar, 0) as stok_adedi
         FROM depo d
         LEFT JOIN urun_stok us ON d.id = us.depo_id AND us.urun_id = ?
         WHERE d.aktif = 1
@@ -283,123 +287,12 @@ def urun_stok_durumu(urun_id):
     
     return jsonify([dict(stok) for stok in stoklar])
 
-# Stok çıkışı - Yeni Fiş Sistemi
-@app.route('/stok_cikisi', methods=['GET', 'POST'])
-@login_required
-def stok_cikisi():
-    if request.method == 'POST':
-        # Sepet verilerini al
-        sepet_data = request.get_json()
-        
-        if not sepet_data or not sepet_data.get('items'):
-            return jsonify({'success': False, 'message': 'Sepet boş!'})
-        
-        depo_id = sepet_data.get('depo_id')
-        aciklama = sepet_data.get('aciklama', '')
-        items = sepet_data.get('items', [])
-        
-        conn = get_db_connection()
-        
-        try:
-            # Fiş numarası oluştur
-            fis_no = f"FIS{datetime.now().strftime('%Y%m%d%H%M%S')}"
-            
-            # Stok kontrolü
-            for item in items:
-                urun_id = item['urun_id']
-                cikis_adedi = int(item['adet'])
-                
-                mevcut_stok = conn.execute(
-                    'SELECT stok_adedi FROM urun_stok WHERE urun_id = ? AND depo_id = ?',
-                    (urun_id, depo_id)
-                ).fetchone()
-                
-                if not mevcut_stok or mevcut_stok['stok_adedi'] < cikis_adedi:
-                    urun_info = conn.execute('SELECT urun_adi FROM urun WHERE id = ?', (urun_id,)).fetchone()
-                    return jsonify({
-                        'success': False, 
-                        'message': f"'{urun_info['urun_adi']}' için yetersiz stok! Mevcut: {mevcut_stok['stok_adedi'] if mevcut_stok else 0}, İstenen: {cikis_adedi}"
-                    })
-            
-            # Fiş oluştur
-            cursor = conn.execute('''
-                INSERT INTO stok_cikis_fis 
-                (fis_no, depo_id, aciklama, toplam_urun_adedi, toplam_adet, kullanici_id, kullanici_adi)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (fis_no, depo_id, aciklama, len(items), 
-                  sum(int(item['adet']) for item in items),
-                  session['kullanici_id'], session['kullanici_adi']))
-            
-            fis_id = cursor.lastrowid
-            
-            # Her ürün için işlem yap
-            for item in items:
-                urun_id = item['urun_id']
-                cikis_adedi = int(item['adet'])
-                
-                # Ürün bilgilerini al
-                urun = conn.execute('SELECT urun_adi, COALESCE(desi, 0.00) as desi FROM urun WHERE id = ?', (urun_id,)).fetchone()
-                
-                # Stok güncelle
-                mevcut_stok = conn.execute(
-                    'SELECT stok_adedi FROM urun_stok WHERE urun_id = ? AND depo_id = ?',
-                    (urun_id, depo_id)
-                ).fetchone()
-                
-                yeni_stok = mevcut_stok['stok_adedi'] - cikis_adedi
-                conn.execute(
-                    'UPDATE urun_stok SET stok_adedi = ?, updated_at = ? WHERE urun_id = ? AND depo_id = ?',
-                    (yeni_stok, datetime.now(), urun_id, depo_id)
-                )
-                
-                # Fiş detayına ekle
-                birim_desi = urun['desi'] or 0
-                toplam_desi = birim_desi * cikis_adedi
-                
-                conn.execute('''
-                    INSERT INTO stok_cikis_fis_detay 
-                    (fis_id, urun_id, urun_adi, cikis_adedi, birim_desi, toplam_desi, kargo_firmasi_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (fis_id, urun_id, urun['urun_adi'], cikis_adedi, birim_desi, toplam_desi, item.get('kargo_firmasi_id')))
-                
-                # İşlem geçmişine kaydet
-                conn.execute('''
-                    INSERT INTO islem_gecmisi 
-                    (islem_tipi, urun_id, depo_id, urun_bilgisi, eski_deger, yeni_deger, 
-                     tarih, kullanici_id, kullanici_adi)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', ('STOK_CIKIS_FIS', urun_id, depo_id, 
-                      f"Fiş: {fis_no} - {urun['urun_adi']} - {aciklama}",
-                      str(mevcut_stok['stok_adedi']), str(yeni_stok),
-                      datetime.now(), session['kullanici_id'], session['kullanici_adi']))
-            
-            conn.commit()
-            conn.close()
-            
-            return jsonify({
-                'success': True, 
-                'message': f'Fiş {fis_no} başarıyla oluşturuldu!',
-                'fis_no': fis_no,
-                'fis_id': fis_id
-            })
-            
-        except Exception as e:
-            conn.rollback()
-            conn.close()
-            return jsonify({'success': False, 'message': f'Hata: {str(e)}'})
-    
-    # GET isteği - form göster
-    conn = get_db_connection()
-    depolar = conn.execute('SELECT * FROM depo WHERE aktif = 1').fetchall()
-    conn.close()
-    
-    return render_template('stok_cikisi.html', depolar=depolar)
-
 # Fiş listesi
 @app.route('/fisler')
 @app.route('/fis_listesi')  # Ek route ekleyelim
 @login_required 
 def fis_listesi():
+    
     conn = get_db_connection()
     
     try:
@@ -519,146 +412,65 @@ def islem_gecmisi():
     
     return render_template('islem_gecmisi.html', gecmis=gecmis)
 
-# Depo transfer
-@app.route('/transfer', methods=['GET', 'POST'])
-@login_required
-def depo_transfer():
-    if request.method == 'POST':
-        urun_id = request.form['urun_id']
-        kaynak_depo_id = request.form['kaynak_depo_id']
-        hedef_depo_id = request.form['hedef_depo_id']
-        transfer_adedi = int(request.form['transfer_adedi'])
-        aciklama = request.form.get('aciklama', '')
-        
-        if kaynak_depo_id == hedef_depo_id:
-            flash('Kaynak ve hedef depo aynı olamaz!', 'error')
-            return redirect(url_for('depo_transfer'))
-        
-        conn = get_db_connection()
-        
-        # Kaynak depodaki stok kontrolü
-        kaynak_stok = conn.execute(
-            'SELECT stok_adedi FROM urun_stok WHERE urun_id = ? AND depo_id = ?',
-            (urun_id, kaynak_depo_id)
-        ).fetchone()
-        
-        if not kaynak_stok or kaynak_stok['stok_adedi'] < transfer_adedi:
-            flash('Kaynak depoda yetersiz stok!', 'error')
-        else:
-            # Kaynak depodan düş
-            yeni_kaynak_stok = kaynak_stok['stok_adedi'] - transfer_adedi
-            conn.execute(
-                'UPDATE urun_stok SET stok_adedi = ?, updated_at = ? WHERE urun_id = ? AND depo_id = ?',
-                (yeni_kaynak_stok, datetime.now(), urun_id, kaynak_depo_id)
-            )
-            
-            # Hedef depoya ekle
-            hedef_stok = conn.execute(
-                'SELECT stok_adedi FROM urun_stok WHERE urun_id = ? AND depo_id = ?',
-                (urun_id, hedef_depo_id)
-            ).fetchone()
-            
-            if hedef_stok:
-                yeni_hedef_stok = hedef_stok['stok_adedi'] + transfer_adedi
-                conn.execute(
-                    'UPDATE urun_stok SET stok_adedi = ?, updated_at = ? WHERE urun_id = ? AND depo_id = ?',
-                    (yeni_hedef_stok, datetime.now(), urun_id, hedef_depo_id)
-                )
-            else:
-                conn.execute(
-                    'INSERT INTO urun_stok (urun_id, depo_id, stok_adedi, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-                    (urun_id, hedef_depo_id, transfer_adedi, datetime.now(), datetime.now())
-                )
-                yeni_hedef_stok = transfer_adedi
-            
-            # İşlem geçmişine kaydet
-            urun_bilgisi = conn.execute('SELECT urun_adi FROM urun WHERE id = ?', (urun_id,)).fetchone()
-            kaynak_depo = conn.execute('SELECT depo_adi FROM depo WHERE id = ?', (kaynak_depo_id,)).fetchone()
-            hedef_depo = conn.execute('SELECT depo_adi FROM depo WHERE id = ?', (hedef_depo_id,)).fetchone()
-            
-            conn.execute('''
-                INSERT INTO islem_gecmisi 
-                (islem_tipi, urun_id, depo_id, hedef_depo_id, urun_bilgisi, eski_deger, yeni_deger, 
-                 tarih, kullanici_id, kullanici_adi)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', ('TRANSFER', urun_id, kaynak_depo_id, hedef_depo_id,
-                  f"{urun_bilgisi['urun_adi']} - {kaynak_depo['depo_adi']} → {hedef_depo['depo_adi']} - {aciklama}",
-                  f"{kaynak_stok['stok_adedi']} → {hedef_stok['stok_adedi'] if hedef_stok else 0}",
-                  f"{yeni_kaynak_stok} → {yeni_hedef_stok}",
-                  datetime.now(), session['kullanici_id'], session['kullanici_adi']))
-            
-            conn.commit()
-            flash(f'{transfer_adedi} adet transfer işlemi başarıyla tamamlandı!', 'success')
-        
-        conn.close()
-        return redirect(url_for('depo_transfer'))
-    
-    # GET isteği - form göster
-    conn = get_db_connection()
-    depolar = conn.execute('SELECT * FROM depo WHERE aktif = 1').fetchall()
-    conn.close()
-    
-    return render_template('depo_transfer.html', depolar=depolar)
+# Eski transfer route'u kaldırıldı - /stok_islem kullanılıyor
 
-# Stok girişi
-@app.route('/stok_girisi', methods=['GET', 'POST'])
+# Eski stok girişi route'u kaldırıldı - /stok_islem kullanılıyor
+
+# Birleşik Stok İşlemleri (Yeni Sistem)
+@app.route('/stok_islem')
 @login_required
-def stok_girisi():
-    if request.method == 'POST':
-        urun_id = request.form['urun_id']
-        depo_id = request.form['depo_id']
-        giris_adedi = int(request.form['giris_adedi'])
-        aciklama = request.form.get('aciklama', '')
-        
-        conn = get_db_connection()
-        
-        # Mevcut stok kontrolü
-        mevcut_stok = conn.execute(
-            'SELECT stok_adedi FROM urun_stok WHERE urun_id = ? AND depo_id = ?',
-            (urun_id, depo_id)
-        ).fetchone()
-        
-        if mevcut_stok:
-            # Var olan stoku güncelle
-            yeni_stok = mevcut_stok['stok_adedi'] + giris_adedi
-            conn.execute(
-                'UPDATE urun_stok SET stok_adedi = ?, updated_at = ? WHERE urun_id = ? AND depo_id = ?',
-                (yeni_stok, datetime.now(), urun_id, depo_id)
-            )
-            eski_deger = mevcut_stok['stok_adedi']
-        else:
-            # Yeni stok kaydı oluştur
-            conn.execute(
-                'INSERT INTO urun_stok (urun_id, depo_id, stok_adedi, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-                (urun_id, depo_id, giris_adedi, datetime.now(), datetime.now())
-            )
-            yeni_stok = giris_adedi
-            eski_deger = 0
-        
-        # İşlem geçmişine kaydet
-        urun_bilgisi = conn.execute('SELECT urun_adi FROM urun WHERE id = ?', (urun_id,)).fetchone()
-        conn.execute('''
-            INSERT INTO islem_gecmisi 
-            (islem_tipi, urun_id, depo_id, urun_bilgisi, eski_deger, yeni_deger, 
-             tarih, kullanici_id, kullanici_adi)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', ('STOK_GIRIS', urun_id, depo_id, 
-              f"{urun_bilgisi['urun_adi']} - {aciklama}",
-              str(eski_deger), str(yeni_stok),
-              datetime.now(), session['kullanici_id'], session['kullanici_adi']))
-        
-        conn.commit()
-        flash(f'{giris_adedi} adet stok girişi başarıyla kaydedildi!', 'success')
-        
-        conn.close()
-        return redirect(url_for('stok_girisi'))
-    
-    # GET isteği - form göster
+def stok_islem():
+    """Unified stock operations - entry, exit, transfer"""
     conn = get_db_connection()
-    depolar = conn.execute('SELECT * FROM depo WHERE aktif = 1').fetchall()
-    conn.close()
     
-    return render_template('stok_girisi.html', depolar=depolar)
+    try:
+        # Kargo firmasi tablosunun varlığını kontrol et
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='kargo_firmasi'")
+        if not cursor.fetchone():
+            # Tablo yoksa oluştur
+            conn.execute('''
+                CREATE TABLE kargo_firmasi (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    firma_adi VARCHAR(100) NOT NULL,
+                    kisa_adi VARCHAR(20),
+                    telefon VARCHAR(20),
+                    website VARCHAR(100),
+                    aktif BOOLEAN DEFAULT 1,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Örnek kargo firmalarını ekle
+            kargo_firmalari = [
+                'Aras Kargo', 'MNG Kargo', 'Yurtiçi Kargo', 'PTT Kargo',
+                'UPS Kargo', 'DHL Kargo', 'Sürat Kargo', 'Horoz Lojistik'
+            ]
+            for firma in kargo_firmalari:
+                conn.execute('INSERT INTO kargo_firmasi (firma_adi, kisa_adi) VALUES (?, ?)', 
+                           (firma, firma.split()[0]))
+            conn.commit()
+        
+        # Get warehouses for dropdowns
+        depolar = conn.execute('SELECT * FROM depo ORDER BY depo_adi').fetchall()
+        
+        # Get products for suggestions
+        urunler = conn.execute('''
+            SELECT u.id, u.urun_adi, u.barkod 
+            FROM urun u 
+            ORDER BY u.urun_adi
+        ''').fetchall()
+        
+    except Exception as e:
+        flash(f'Stok işlem sayfası yüklenirken hata: {str(e)}', 'error')
+        depolar = []
+        urunler = []
+    finally:
+        conn.close()
+    
+    return render_template('stok_islem.html',
+                         depolar=depolar,
+                         urunler=urunler)
 
 # Health check endpoint
 @app.route('/health')
@@ -680,12 +492,43 @@ def urun_listesi():
     
     if arama:
         urunler = conn.execute('''
-            SELECT * FROM urun 
-            WHERE urun_adi LIKE ? OR barkod LIKE ? OR jant_ebati LIKE ?
-            ORDER BY urun_adi
+            SELECT 
+                MIN(u.id) as id,
+                u.urun_adi,
+                u.jant_ebati,
+                u.barkod,
+                u.desi,
+                u.aciklama,
+                SUM(COALESCE(us.miktar, 0)) as toplam_stok,
+                COUNT(DISTINCT us.depo_id) as depo_sayisi,
+                GROUP_CONCAT(DISTINCT d.depo_adi || ': ' || COALESCE(us.miktar, 0)) as depo_detay,
+                MAX(u.updated_at) as updated_at
+            FROM urun u
+            LEFT JOIN urun_stok us ON u.id = us.urun_id
+            LEFT JOIN depo d ON us.depo_id = d.id
+            WHERE u.urun_adi LIKE ? OR u.barkod LIKE ? OR u.jant_ebati LIKE ?
+            GROUP BY u.urun_adi, u.jant_ebati, u.barkod, u.desi, u.aciklama
+            ORDER BY u.urun_adi
         ''', (f'%{arama}%', f'%{arama}%', f'%{arama}%')).fetchall()
     else:
-        urunler = conn.execute('SELECT * FROM urun ORDER BY urun_adi').fetchall()
+        urunler = conn.execute('''
+            SELECT 
+                MIN(u.id) as id,
+                u.urun_adi,
+                u.jant_ebati,
+                u.barkod,
+                u.desi,
+                u.aciklama,
+                SUM(COALESCE(us.miktar, 0)) as toplam_stok,
+                COUNT(DISTINCT us.depo_id) as depo_sayisi,
+                GROUP_CONCAT(DISTINCT d.depo_adi || ': ' || COALESCE(us.miktar, 0)) as depo_detay,
+                MAX(u.updated_at) as updated_at
+            FROM urun u
+            LEFT JOIN urun_stok us ON u.id = us.urun_id
+            LEFT JOIN depo d ON us.depo_id = d.id
+            GROUP BY u.urun_adi, u.jant_ebati, u.barkod, u.desi, u.aciklama
+            ORDER BY u.urun_adi
+        ''').fetchall()
     
     conn.close()
     
@@ -707,6 +550,16 @@ def urun_ekle():
             return redirect(url_for('urun_ekle'))
         
         conn = get_db_connection()
+        
+        # Aynı ürün adı kontrolü
+        existing_product = conn.execute(
+            'SELECT id FROM urun WHERE urun_adi = ? AND jant_ebati = ?', 
+            (urun_adi, jant_ebati)
+        ).fetchone()
+        if existing_product:
+            flash(f'"{urun_adi}" ({jant_ebati}") zaten mevcut! Stok işlemleri için mevcut ürünü kullanın.', 'warning')
+            conn.close()
+            return redirect(url_for('urun_listesi'))
         
         # Barkod benzersizlik kontrolü (sadece "00" değilse)
         if barkod and barkod != '00':
@@ -746,13 +599,13 @@ def urun_ekle():
     return render_template('urun_ekle.html')
 
 # Ürün güncelleme
-@app.route('/urun_guncelle/<int:urun_id>', methods=['GET', 'POST'])
+@app.route('/urun_guncelle/<int:id>', methods=['GET', 'POST'])
 @login_required
-def urun_guncelle(urun_id):
+def urun_guncelle(id):
     conn = get_db_connection()
     
     # Ürün bilgilerini al
-    urun = conn.execute('SELECT * FROM urun WHERE id = ?', (urun_id,)).fetchone()
+    urun = conn.execute('SELECT * FROM urun WHERE id = ?', (id,)).fetchone()
     if not urun:
         flash('Ürün bulunamadı!', 'error')
         conn.close()
@@ -767,22 +620,22 @@ def urun_guncelle(urun_id):
         
         if not urun_adi or not jant_ebati:
             flash('Ürün adı ve jant ebatı zorunludur!', 'error')
-            return redirect(url_for('urun_guncelle', urun_id=urun_id))
+            return redirect(url_for('urun_guncelle', id=id))
         
         # Barkod benzersizlik kontrolü (kendisi hariç ve sadece "00" değilse)
         if barkod and barkod != '00':
             existing_barcode = conn.execute(
                 'SELECT id FROM urun WHERE barkod = ? AND id != ?', 
-                (barkod, urun_id)
+                (barkod, id)
             ).fetchone()
             if existing_barcode:
                 flash('Bu barkod başka bir ürün tarafından kullanılıyor!', 'error')
                 conn.close()
-                return redirect(url_for('urun_guncelle', urun_id=urun_id))
+                return redirect(url_for('urun_guncelle', id=id))
         
         try:
             # Eski değerleri kaydet
-            eski_degerler = f"Ad: {urun['urun_adi']}, Jant: {urun['jant_ebati']}, Desi: {urun.get('desi', 0)} kg, Barkod: {urun['barkod'] or '00'}"
+            eski_degerler = f"Ad: {urun['urun_adi']}, Jant: {urun['jant_ebati']}, Desi: {urun['desi'] if urun['desi'] else 0} kg, Barkod: {urun['barkod'] or '00'}"
             yeni_degerler = f"Ad: {urun_adi}, Jant: {jant_ebati}, Desi: {desi} kg, Barkod: {barkod}"
             
             # Güncelleme
@@ -790,14 +643,14 @@ def urun_guncelle(urun_id):
                 UPDATE urun 
                 SET urun_adi = ?, jant_ebati = ?, desi = ?, barkod = ?, aciklama = ?, updated_at = ?
                 WHERE id = ?
-            ''', (urun_adi, jant_ebati, desi, barkod, aciklama or None, datetime.now(), urun_id))
+            ''', (urun_adi, jant_ebati, desi, barkod, aciklama or None, datetime.now(), id))
             
             # İşlem geçmişine kaydet
             conn.execute('''
                 INSERT INTO islem_gecmisi 
                 (islem_tipi, urun_id, urun_bilgisi, eski_deger, yeni_deger, tarih, kullanici_id, kullanici_adi)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', ('URUN_GUNCELLEME', urun_id, f"Ürün güncellendi: {urun_adi}", 
+            ''', ('URUN_GUNCELLEME', id, f"Ürün güncellendi: {urun_adi}", 
                   eski_degerler, yeni_degerler,
                   datetime.now(), session['kullanici_id'], session['kullanici_adi']))
             
@@ -811,8 +664,21 @@ def urun_guncelle(urun_id):
             
         return redirect(url_for('urun_listesi'))
     
+    # Depolar ve stok bilgilerini al
+    depolar = conn.execute('SELECT * FROM depo ORDER BY depo_adi').fetchall()
+    urun_stoklari = conn.execute('''
+        SELECT us.depo_id, us.miktar, d.depo_adi
+        FROM urun_stok us
+        JOIN depo d ON us.depo_id = d.id
+        WHERE us.urun_id = ?
+        ORDER BY d.depo_adi
+    ''', (id,)).fetchall()
+    
     conn.close()
-    return render_template('urun_guncelle.html', urun=urun)
+    return render_template('urun_guncelle.html', 
+                         urun=urun, 
+                         depolar=depolar, 
+                         urun_stoklari=urun_stoklari)
 
 # Ürün silme
 @app.route('/urun_sil/<int:urun_id>', methods=['POST'])
@@ -832,7 +698,7 @@ def urun_sil(urun_id):
         return redirect(url_for('urun_listesi'))
     
     # Stok kontrolü
-    stok_var = conn.execute('SELECT COUNT(*) as sayac FROM urun_stok WHERE urun_id = ? AND stok_adedi > 0', (urun_id,)).fetchone()
+    stok_var = conn.execute('SELECT COUNT(*) as sayac FROM urun_stok WHERE urun_id = ? AND miktar > 0', (urun_id,)).fetchone()
     if stok_var['sayac'] > 0:
         flash('Bu ürünün stokta kaydı bulunuyor! Önce stokları sıfırlamanız gerekir.', 'error')
         conn.close()
@@ -932,75 +798,200 @@ def kullanici_sifre_sifirla(kullanici_id):
         
     return redirect(url_for('kullanici_listesi'))
 
+# Depo Yönetimi (Sadece admin)
+@app.route('/depolar')
+@login_required
+def depo_listesi():
+    """Depo listesi sayfası"""
+    if session.get('rol') != 'admin':
+        flash('Bu işlem için admin yetkisi gereklidir!', 'error')
+        return redirect(url_for('index'))
+    
+    conn = get_db_connection()
+    depolar = conn.execute('''
+        SELECT d.*, 
+               COUNT(us.id) as urun_sayisi,
+               SUM(COALESCE(us.miktar, 0)) as toplam_stok
+        FROM depo d
+        LEFT JOIN urun_stok us ON d.id = us.depo_id
+        GROUP BY d.id
+        ORDER BY d.depo_adi
+    ''').fetchall()
+    conn.close()
+    
+    return render_template('depo_listesi.html', depolar=depolar)
+
+@app.route('/depo_ekle', methods=['GET', 'POST'])
+@login_required
+def depo_ekle():
+    """Yeni depo ekleme"""
+    if session.get('rol') != 'admin':
+        flash('Bu işlem için admin yetkisi gereklidir!', 'error')
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        depo_adi = request.form['depo_adi'].strip()
+        adres = request.form.get('adres', '').strip()
+        telefon = request.form.get('telefon', '').strip()
+        email = request.form.get('email', '').strip()
+        
+        if not depo_adi:
+            flash('Depo adı boş olamaz!', 'error')
+            return render_template('depo_ekle.html')
+        
+        conn = get_db_connection()
+        try:
+            # Aynı isimde depo var mı kontrol et
+            mevcut = conn.execute('SELECT id FROM depo WHERE depo_adi = ?', (depo_adi,)).fetchone()
+            if mevcut:
+                flash('Bu isimde bir depo zaten mevcut!', 'error')
+                return render_template('depo_ekle.html')
+            
+            # Yeni depo ekle
+            conn.execute('''
+                INSERT INTO depo (depo_adi, adres, telefon, email, aktif, created_at)
+                VALUES (?, ?, ?, ?, 1, ?)
+            ''', (depo_adi, adres, telefon, email, datetime.now()))
+            
+            conn.commit()
+            flash(f'"{depo_adi}" deposu başarıyla eklendi!', 'success')
+            return redirect(url_for('depo_listesi'))
+            
+        except Exception as e:
+            flash(f'Depo eklenirken hata oluştu: {str(e)}', 'error')
+        finally:
+            conn.close()
+    
+    return render_template('depo_ekle.html')
+
+@app.route('/depo_guncelle/<int:depo_id>', methods=['GET', 'POST'])
+@login_required
+def depo_guncelle(depo_id):
+    """Depo güncelleme"""
+    if session.get('rol') != 'admin':
+        flash('Bu işlem için admin yetkisi gereklidir!', 'error')
+        return redirect(url_for('index'))
+    
+    conn = get_db_connection()
+    
+    if request.method == 'POST':
+        depo_adi = request.form['depo_adi'].strip()
+        adres = request.form.get('adres', '').strip()
+        telefon = request.form.get('telefon', '').strip()
+        email = request.form.get('email', '').strip()
+        aktif = bool(request.form.get('aktif'))
+        
+        if not depo_adi:
+            flash('Depo adı boş olamaz!', 'error')
+            return redirect(url_for('depo_guncelle', depo_id=depo_id))
+        
+        try:
+            # Aynı isimde başka depo var mı kontrol et
+            mevcut = conn.execute('SELECT id FROM depo WHERE depo_adi = ? AND id != ?', 
+                                 (depo_adi, depo_id)).fetchone()
+            if mevcut:
+                flash('Bu isimde başka bir depo zaten mevcut!', 'error')
+                return redirect(url_for('depo_guncelle', depo_id=depo_id))
+            
+            # Depoyu güncelle
+            conn.execute('''
+                UPDATE depo 
+                SET depo_adi = ?, adres = ?, telefon = ?, email = ?, aktif = ?
+                WHERE id = ?
+            ''', (depo_adi, adres, telefon, email, aktif, depo_id))
+            
+            conn.commit()
+            flash(f'"{depo_adi}" deposu başarıyla güncellendi!', 'success')
+            return redirect(url_for('depo_listesi'))
+            
+        except Exception as e:
+            flash(f'Depo güncellenirken hata oluştu: {str(e)}', 'error')
+        finally:
+            conn.close()
+    
+    # GET request - depo bilgilerini getir
+    depo = conn.execute('SELECT * FROM depo WHERE id = ?', (depo_id,)).fetchone()
+    conn.close()
+    
+    if not depo:
+        flash('Depo bulunamadı!', 'error')
+        return redirect(url_for('depo_listesi'))
+    
+    return render_template('depo_guncelle.html', depo=depo)
+
 # Günlük Rapor
 @app.route('/gunluk_rapor')
 @login_required
 def gunluk_rapor():
-    """Günlük giriş ve çıkış raporunu gösterir"""
-    
-    # Tarih filtresi (varsayılan: bugün)
+    # Gerekli parametreleri al
     secili_tarih = request.args.get('tarih', datetime.now().strftime('%Y-%m-%d'))
     baslangic_tarih = request.args.get('baslangic_tarih', secili_tarih)
     bitis_tarih = request.args.get('bitis_tarih', secili_tarih)
-    
+    kargo_firma_id = request.args.get('kargo_firma_id')
+    platform_id = request.args.get('platform_id')
+
     conn = get_db_connection()
-    
-    # Giriş işlemleri (STOK_GIRISI işlemlerini al)
-    giris_islemleri = conn.execute('''
-        SELECT ig.*, u.urun_adi, u.jant_ebati, u.barkod, d.depo_adi
-        FROM islem_gecmisi ig
-        LEFT JOIN urun u ON ig.urun_id = u.id
-        LEFT JOIN depo d ON ig.depo_id = d.id
-        WHERE ig.islem_tipi = 'STOK_GIRISI' 
-        AND DATE(ig.tarih) = ?
-        ORDER BY ig.tarih DESC
-    ''', (secili_tarih,)).fetchall()
-    
-    # Çıkış işlemleri (STOK_CIKISI işlemlerini al)
-    cikis_islemleri = conn.execute('''
-        SELECT ig.*, u.urun_adi, u.jant_ebati, u.barkod, d.depo_adi
-        FROM islem_gecmisi ig
-        LEFT JOIN urun u ON ig.urun_id = u.id
-        LEFT JOIN depo d ON ig.depo_id = d.id
-        WHERE ig.islem_tipi = 'STOK_CIKISI' 
-        AND DATE(ig.tarih) = ?
-        ORDER BY ig.tarih DESC
-    ''', (secili_tarih,)).fetchall()
-    
-    # Transfer işlemleri (DEPO_TRANSFER işlemlerini al)
-    transfer_islemleri = conn.execute('''
-        SELECT ig.*, u.urun_adi, u.jant_ebati, u.barkod, d.depo_adi,
-               d2.depo_adi as hedef_depo_adi
-        FROM islem_gecmisi ig
-        LEFT JOIN urun u ON ig.urun_id = u.id
-        LEFT JOIN depo d ON ig.depo_id = d.id
-        LEFT JOIN depo d2 ON ig.hedef_depo_id = d2.id
-        WHERE ig.islem_tipi = 'DEPO_TRANSFER' 
-        AND DATE(ig.tarih) = ?
-        ORDER BY ig.tarih DESC
-    ''', (secili_tarih,)).fetchall()
-    
-    # Günlük özet
-    ozet = conn.execute('''
-        SELECT 
-            islem_tipi,
-            COUNT(*) as islem_sayisi
-        FROM islem_gecmisi 
-        WHERE DATE(tarih) = ?
-        AND islem_tipi IN ('STOK_GIRISI', 'STOK_CIKISI', 'DEPO_TRANSFER')
-        GROUP BY islem_tipi
-    ''', (secili_tarih,)).fetchall()
-    
-    # Kargo firmalarına göre günlük çıkış raporu (tabloların varlığını kontrol et)
-    kargo_raporu = []
     try:
-        kargo_raporu = conn.execute('''
-            SELECT 
-                COALESCE(kf.firma_adi, 'Kargo Belirtilmemiş') as kargo_firma,
-                COUNT(DISTINCT fd.fis_id) as fis_sayisi,
-                COUNT(fd.id) as urun_cesit_sayisi,
-                SUM(fd.cikis_adedi) as toplam_adet,
-                ROUND(COALESCE(SUM(fd.toplam_desi), 0), 2) as toplam_desi
+        # Giriş işlemleri (STOK_GIRISI işlemlerini al)
+        giris_query = '''
+            SELECT ig.*, u.urun_adi, u.jant_ebati, u.barkod, d.depo_adi
+            FROM islem_gecmisi ig
+            LEFT JOIN urun u ON ig.urun_id = u.id
+            LEFT JOIN depo d ON ig.depo_id = d.id
+            WHERE ig.islem_tipi = 'STOK_GIRISI' 
+            AND DATE(ig.tarih) = ?
+        '''
+        giris_params = [secili_tarih]
+        if platform_id:
+            giris_query += ' AND ig.platform_id = ?'
+            giris_params.append(platform_id)
+        giris_query += ' ORDER BY ig.tarih DESC'
+        giris_islemleri = conn.execute(giris_query, tuple(giris_params)).fetchall()
+
+        # Çıkış işlemleri (STOK_CIKISI işlemlerini al) - kargo firması ve platform filtresi
+        cikis_query = '''
+            SELECT ig.*, u.urun_adi, u.jant_ebati, u.barkod, d.depo_adi, ig.kargo_bilgisi, ig.platform_id
+            FROM islem_gecmisi ig
+            LEFT JOIN urun u ON ig.urun_id = u.id
+            LEFT JOIN depo d ON ig.depo_id = d.id
+            LEFT JOIN stok_cikis_fis f ON DATE(ig.tarih) = DATE(f.tarih) AND ig.depo_id = f.depo_id
+            LEFT JOIN stok_cikis_fis_detay fd ON f.id = fd.fis_id AND ig.urun_id = fd.urun_id
+            WHERE ig.islem_tipi = 'STOK_CIKISI'
+            AND DATE(ig.tarih) = ?
+        '''
+        cikis_params = [secili_tarih]
+        if kargo_firma_id:
+            cikis_query += ' AND fd.kargo_firmasi_id = ?'
+            cikis_params.append(kargo_firma_id)
+        if platform_id:
+            cikis_query += ' AND ig.platform_id = ?'
+            cikis_params.append(platform_id)
+        cikis_query += ' ORDER BY ig.tarih DESC'
+        cikis_islemleri = conn.execute(cikis_query, tuple(cikis_params)).fetchall()
+
+        # Transfer işlemleri (DEPO_TRANSFER işlemlerini al)
+        transfer_query = '''
+            SELECT ig.*, u.urun_adi, u.jant_ebati, u.barkod, d.depo_adi,
+                   d2.depo_adi as hedef_depo_adi
+            FROM islem_gecmisi ig
+            LEFT JOIN urun u ON ig.urun_id = u.id
+            LEFT JOIN depo d ON ig.depo_id = d.id
+            LEFT JOIN depo d2 ON ig.hedef_depo_id = d2.id
+            WHERE ig.islem_tipi = 'DEPO_TRANSFER' 
+            AND DATE(ig.tarih) = ?
+        '''
+        transfer_params = [secili_tarih]
+        if platform_id:
+            transfer_query += ' AND ig.platform_id = ?'
+            transfer_params.append(platform_id)
+        transfer_query += ' ORDER BY ig.tarih DESC'
+        transfer_islemleri = conn.execute(transfer_query, tuple(transfer_params)).fetchall()
+
+        # Kargo bazlı tarih aralıklı özet
+        kargo_ozet = conn.execute('''
+            SELECT COALESCE(kf.firma_adi, 'Kargo Belirtilmemiş') as kargo_firma,
+                   SUM(fd.cikis_adedi) as toplam_adet,
+                   COUNT(fd.id) as islem_sayisi
             FROM stok_cikis_fis_detay fd
             LEFT JOIN stok_cikis_fis f ON fd.fis_id = f.id
             LEFT JOIN kargo_firmasi kf ON fd.kargo_firmasi_id = kf.id
@@ -1008,59 +999,124 @@ def gunluk_rapor():
             GROUP BY kf.firma_adi
             ORDER BY toplam_adet DESC
         ''', (baslangic_tarih, bitis_tarih)).fetchall()
-    except Exception as e:
-        print(f"Kargo raporu hatası: {e}")
-    
-    # Günlük fiş özeti
-    fis_ozeti = {}
-    try:
-        fis_ozeti_data = conn.execute('''
-            SELECT 
-                COUNT(DISTINCT f.id) as toplam_fis,
-                COUNT(fd.id) as toplam_urun_cesit,
-                SUM(fd.cikis_adedi) as toplam_cikis_adet,
-                ROUND(COALESCE(SUM(fd.toplam_desi), 0), 2) as toplam_desi
-            FROM stok_cikis_fis f
-            LEFT JOIN stok_cikis_fis_detay fd ON f.id = fd.fis_id
+
+        # Platform bazlı tarih aralıklı özet
+        platform_ozet = conn.execute('''
+            SELECT COALESCE(p.platform_adi, 'Belirtilmemiş') as platform_adi,
+                   SUM(fd.cikis_adedi) as toplam_adet,
+                   COUNT(fd.id) as islem_sayisi
+            FROM stok_cikis_fis_detay fd
+            LEFT JOIN stok_cikis_fis f ON fd.fis_id = f.id
+            LEFT JOIN platform p ON f.platform_id = p.id
             WHERE DATE(f.tarih) BETWEEN ? AND ?
-        ''', (baslangic_tarih, bitis_tarih)).fetchone()
-        
-        if fis_ozeti_data:
-            fis_ozeti = dict(fis_ozeti_data)
-    except Exception as e:
-        print(f"Fiş özeti hatası: {e}")
-    
-    conn.close()
-    
-    # Özet verilerini dictionary'e çevir
-    ozet_dict = {}
-    for o in ozet:
-        # Miktarları yeni_deger'den çıkarabilir ya da standart 1 verebiliriz
-        ozet_dict[o['islem_tipi']] = {
-            'islem_sayisi': o['islem_sayisi'],
-            'toplam_miktar': o['islem_sayisi']  # Şimdilik işlem sayısını miktar olarak gösterelim
-        }
-    
-    return render_template('gunluk_rapor.html', 
-                         giris_islemleri=giris_islemleri,
-                         cikis_islemleri=cikis_islemleri,
-                         transfer_islemleri=transfer_islemleri,
-                         ozet=ozet_dict,
-                         kargo_raporu=kargo_raporu,
-                         fis_ozeti=fis_ozeti,
-                         secili_tarih=secili_tarih,
-                         baslangic_tarih=baslangic_tarih,
-                         bitis_tarih=bitis_tarih)
+            GROUP BY p.platform_adi
+            ORDER BY toplam_adet DESC
+        ''', (baslangic_tarih, bitis_tarih)).fetchall()
+
+        # Günlük özet
+        ozet = conn.execute('''
+            SELECT 
+                islem_tipi,
+                COUNT(*) as islem_sayisi
+            FROM islem_gecmisi 
+            WHERE DATE(tarih) = ?
+            AND islem_tipi IN ('STOK_GIRISI', 'STOK_CIKISI', 'DEPO_TRANSFER')
+            GROUP BY islem_tipi
+        ''', (secili_tarih,)).fetchall()
+
+        # Kargo firmalarına göre günlük çıkış raporu (tabloların varlığını kontrol et)
+        kargo_raporu = []
+        try:
+            kargo_raporu = conn.execute('''
+                SELECT 
+                    COALESCE(kf.firma_adi, 'Kargo Belirtilmemiş') as kargo_firma,
+                    COUNT(DISTINCT fd.fis_id) as fis_sayisi,
+                    COUNT(fd.id) as urun_cesit_sayisi,
+                    SUM(fd.cikis_adedi) as toplam_adet,
+                    ROUND(COALESCE(SUM(fd.toplam_desi), 0), 2) as toplam_desi
+                FROM stok_cikis_fis_detay fd
+                LEFT JOIN stok_cikis_fis f ON fd.fis_id = f.id
+                LEFT JOIN kargo_firmasi kf ON fd.kargo_firmasi_id = kf.id
+                WHERE DATE(f.tarih) BETWEEN ? AND ?
+                GROUP BY kf.firma_adi
+                ORDER BY toplam_adet DESC
+            ''', (baslangic_tarih, bitis_tarih)).fetchall()
+        except Exception as e:
+            print(f"Kargo raporu hatası: {e}")
+
+        # Günlük fiş özeti
+        fis_ozeti = {}
+        try:
+            fis_ozeti_data = conn.execute('''
+                SELECT 
+                    COUNT(DISTINCT f.id) as toplam_fis,
+                    COUNT(fd.id) as toplam_urun_cesit,
+                    SUM(fd.cikis_adedi) as toplam_cikis_adet,
+                    ROUND(COALESCE(SUM(fd.toplam_desi), 0), 2) as toplam_desi
+                FROM stok_cikis_fis f
+                LEFT JOIN stok_cikis_fis_detay fd ON f.id = fd.fis_id
+                WHERE DATE(f.tarih) BETWEEN ? AND ?
+            ''', (baslangic_tarih, bitis_tarih)).fetchone()
+            
+            if fis_ozeti_data:
+                fis_ozeti = dict(fis_ozeti_data)
+        except Exception as e:
+            print(f"Fiş özeti hatası: {e}")
+
+        # Kargo firmaları ve platform tipleri filtre seçenekleri için
+        kargo_firmalari = conn.execute('SELECT id, firma_adi FROM kargo_firmasi WHERE aktif = 1 ORDER BY firma_adi').fetchall()
+        platformlar = conn.execute('SELECT id, platform_adi FROM platform WHERE aktif = 1 ORDER BY platform_adi').fetchall()
+
+        # Özet verilerini dictionary'e çevir
+        ozet_dict = {}
+        for o in ozet:
+            ozet_dict[o['islem_tipi']] = {
+                'islem_sayisi': o['islem_sayisi'],
+                'toplam_miktar': o['islem_sayisi']
+            }
+
+        return render_template(
+            'gunluk_rapor.html',
+            giris_islemleri=giris_islemleri,
+            cikis_islemleri=cikis_islemleri,
+            transfer_islemleri=transfer_islemleri,
+            ozet=ozet_dict,
+            kargo_raporu=kargo_raporu,
+            fis_ozeti=fis_ozeti,
+            secili_tarih=secili_tarih,
+            baslangic_tarih=baslangic_tarih,
+            bitis_tarih=bitis_tarih,
+            kargo_firmalari=kargo_firmalari,
+            platformlar=platformlar,
+            secili_kargo_firma_id=kargo_firma_id,
+            secili_platform_id=platform_id,
+            kargo_ozet=kargo_ozet,
+            platform_ozet=platform_ozet
+        )
+    finally:
+        conn.close()
 
 # Kargo Firmalarını Listele API
 @app.route('/api/kargo_firmalari')
 @login_required
 def api_kargo_firmalari():
     """Aktif kargo firmalarını listeler"""
+    conn = None
     try:
         conn = get_db_connection()
+        
+        # Tabloyu kontrol et, yoksa oluştur
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='kargo_firmasi'")
+        if not cursor.fetchone():
+            return jsonify({
+                'firmalar': [],
+                'varsayilan_id': None,
+                'error': 'Kargo firmasi tablosu bulunamadı'
+            })
+        
         kargo_firmalari = conn.execute('''
-            SELECT id, firma_adi, kisa_adi, telefon, website 
+            SELECT id, firma_adi, aktif
             FROM kargo_firmasi 
             WHERE aktif = 1 
             ORDER BY firma_adi
@@ -1075,21 +1131,79 @@ def api_kargo_firmalari():
         except:
             pass
         
-        conn.close()
-        
         return jsonify({
             'firmalar': [{
                 'id': firma['id'],
                 'firma_adi': firma['firma_adi'],
-                'kisa_adi': firma['kisa_adi'],
-                'telefon': firma['telefon'],
-                'website': firma['website']
+                'kisa_adi': firma['firma_adi'],  # kisa_adi yerine firma_adi kullan
+                'telefon': '',
+                'website': ''
             } for firma in kargo_firmalari],
             'varsayilan_id': varsayilan_kargo
         })
         
     except Exception as e:
+        return jsonify({
+            'firmalar': [],
+            'varsayilan_id': None,
+            'error': f'Kargo firmaları yüklenirken hata: {str(e)}'
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
+# Platform Listesi API
+@app.route('/api/platformlar')
+@login_required
+def api_platformlar():
+    """Aktif platformları listeler"""
+    try:
+        conn = get_db_connection()
+        platformlar = conn.execute('''
+            SELECT id, platform_adi, platform_tipi, komisyon_orani 
+            FROM platform 
+            WHERE aktif = 1 
+            ORDER BY platform_adi
+        ''').fetchall()
+        
+        return jsonify([{
+            'id': platform['id'],
+            'platform_adi': platform['platform_adi'],
+            'platform_tipi': platform['platform_tipi'],
+            'komisyon_orani': platform['komisyon_orani']
+        } for platform in platformlar])
+        
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+# Müşteri Listesi API
+@app.route('/api/musteriler')
+@login_required
+def api_musteriler():
+    """Aktif müşterileri listeler"""
+    try:
+        conn = get_db_connection()
+        musteriler = conn.execute('''
+            SELECT id, musteri_adi, musteri_tipi, telefon, email 
+            FROM musteri 
+            WHERE aktif = 1 
+            ORDER BY musteri_adi
+        ''').fetchall()
+        
+        return jsonify([{
+            'id': musteri['id'],
+            'musteri_adi': musteri['musteri_adi'],
+            'musteri_tipi': musteri['musteri_tipi'],
+            'telefon': musteri['telefon'],
+            'email': musteri['email']
+        } for musteri in musteriler])
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
 
 # Database Fix - Geçici route
 # Sistem Ayarları
@@ -1230,10 +1344,253 @@ def kargo_firma_kaydet():
 
 
 # Application entry point
+# New Unified Stock Operations API Endpoints
+@app.route('/api/stok_cikis', methods=['POST'])
+@login_required
+def api_stok_cikis():
+    """API endpoint for stock exit operations"""
+    try:
+        data = request.get_json()
+        depo_id = int(data.get('depo_id'))
+        platform_id = data.get('platform_id')
+        kargo_id = data.get('kargo_id')
+        aciklama = data.get('aciklama', '')
+        urunler = data.get('urunler', [])
+        
+        if not depo_id or not urunler:
+            return jsonify({'success': False, 'message': 'Eksik bilgi!'})
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Fiş numarası oluştur
+        fis_no = f"C{datetime.now().strftime('%Y%m%d%H%M%S')}{session['kullanici_id']}"
+        tarih = datetime.now()
+        toplam_urun_adedi = len(urunler)
+        toplam_adet = sum([int(u['adet']) for u in urunler])
+        durum = 'TAMAMLANDI'
+
+        # Fiş kaydı
+        cursor.execute('''
+            INSERT INTO stok_cikis_fis (fis_no, tarih, depo_id, aciklama, toplam_urun_adedi, toplam_adet, kullanici_id, kullanici_adi, durum)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (fis_no, tarih, depo_id, aciklama, toplam_urun_adedi, toplam_adet, session['kullanici_id'], session['kullanici_adi'], durum))
+        fis_id = cursor.lastrowid
+
+        for urun_data in urunler:
+            urun_id = int(urun_data['urun_id'])
+            adet = int(urun_data['adet'])
+
+            # Check stock
+            mevcut_stok = cursor.execute('''
+                SELECT miktar FROM urun_stok 
+                WHERE urun_id = ? AND depo_id = ?
+            ''', (urun_id, depo_id)).fetchone()
+
+            mevcut_miktar = mevcut_stok['miktar'] if mevcut_stok else 0
+            if mevcut_miktar < adet:
+                conn.rollback()
+                urun_info = cursor.execute('SELECT urun_adi FROM urun WHERE id = ?', (urun_id,)).fetchone()
+                return jsonify({
+                    'success': False, 
+                    'message': f'{urun_info["urun_adi"]} için yeterli stok yok! (Mevcut: {mevcut_miktar}, İstenen: {adet})'
+                })
+
+            # Update stock
+            yeni_miktar = mevcut_miktar - adet
+            cursor.execute('''
+                UPDATE urun_stok SET miktar = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE urun_id = ? AND depo_id = ?
+            ''', (yeni_miktar, urun_id, depo_id))
+
+            # Log transaction
+            urun_info = cursor.execute('SELECT urun_adi, desi FROM urun WHERE id = ?', (urun_id,)).fetchone()
+            cursor.execute('''
+                INSERT INTO islem_gecmisi (
+                    islem_tipi, urun_id, depo_id, eski_deger, yeni_deger, 
+                    urun_bilgisi, kullanici_id, kullanici_adi,
+                    platform_id, kargo_bilgisi
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                'STOK_CIKIS', urun_id, depo_id, str(mevcut_miktar), str(yeni_miktar),
+                f'{urun_info["urun_adi"]} - {aciklama}',
+                session['kullanici_id'], session['kullanici_adi'],
+                platform_id, f'Kargo ID: {kargo_id}' if kargo_id else None
+            ))
+
+            # Fiş detay kaydı
+            cursor.execute('''
+                INSERT INTO stok_cikis_fis_detay (fis_id, urun_id, urun_adi, cikis_adedi, birim_desi, toplam_desi, kargo_firmasi_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                fis_id, urun_id, urun_info['urun_adi'], adet, urun_info['desi'], float(urun_info['desi']) * adet, kargo_id
+            ))
+
+        conn.commit()
+        return jsonify({'success': True, 'message': 'Stok çıkışı başarıyla tamamlandı!'})
+        
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+        return jsonify({'success': False, 'message': f'Hata: {str(e)}'})
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+@app.route('/api/stok_giris', methods=['POST'])
+@login_required
+def api_stok_giris():
+    """API endpoint for stock entry operations"""
+    try:
+        data = request.get_json()
+        depo_id = int(data.get('depo_id'))
+        urun_id = int(data.get('urun_id'))
+        miktar = int(data.get('miktar'))
+        aciklama = data.get('aciklama', '')
+        
+        if not depo_id or not urun_id or not miktar:
+            return jsonify({'success': False, 'message': 'Eksik bilgi!'})
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get current stock
+        mevcut_stok = cursor.execute('''
+            SELECT miktar FROM urun_stok 
+            WHERE urun_id = ? AND depo_id = ?
+        ''', (urun_id, depo_id)).fetchone()
+        
+        eski_miktar = mevcut_stok['miktar'] if mevcut_stok else 0
+        yeni_miktar = eski_miktar + miktar
+        
+        # Update or insert stock
+        if mevcut_stok:
+            cursor.execute('''
+                UPDATE urun_stok SET miktar = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE urun_id = ? AND depo_id = ?
+            ''', (yeni_miktar, urun_id, depo_id))
+        else:
+            cursor.execute('''
+                INSERT INTO urun_stok (urun_id, depo_id, miktar)
+                VALUES (?, ?, ?)
+            ''', (urun_id, depo_id, yeni_miktar))
+        
+        # Log transaction
+        urun_info = cursor.execute('SELECT urun_adi FROM urun WHERE id = ?', (urun_id,)).fetchone()
+        cursor.execute('''
+            INSERT INTO islem_gecmisi (
+                islem_tipi, urun_id, depo_id, eski_deger, yeni_deger, 
+                urun_bilgisi, kullanici_id, kullanici_adi
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            'STOK_GIRIS', urun_id, depo_id, str(eski_miktar), str(yeni_miktar),
+            f'{urun_info["urun_adi"]} - {aciklama}',
+            session['kullanici_id'], session['kullanici_adi']
+        ))
+        
+        conn.commit()
+        return jsonify({'success': True, 'message': 'Stok girişi başarıyla tamamlandı!'})
+        
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+        return jsonify({'success': False, 'message': f'Hata: {str(e)}'})
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+@app.route('/api/depo_transfer', methods=['POST'])
+@login_required
+def api_depo_transfer():
+    """API endpoint for warehouse transfer operations"""
+    try:
+        data = request.get_json()
+        kaynak_depo_id = int(data.get('kaynak_depo_id'))
+        hedef_depo_id = int(data.get('hedef_depo_id'))
+        urun_id = int(data.get('urun_id'))
+        miktar = int(data.get('miktar'))
+        aciklama = data.get('aciklama', '')
+        
+        if not kaynak_depo_id or not hedef_depo_id or not urun_id or not miktar:
+            return jsonify({'success': False, 'message': 'Eksik bilgi!'})
+        
+        if kaynak_depo_id == hedef_depo_id:
+            return jsonify({'success': False, 'message': 'Kaynak ve hedef depo aynı olamaz!'})
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check source stock
+        kaynak_stok = cursor.execute('''
+            SELECT miktar FROM urun_stok 
+            WHERE urun_id = ? AND depo_id = ?
+        ''', (urun_id, kaynak_depo_id)).fetchone()
+        
+        kaynak_miktar = kaynak_stok['miktar'] if kaynak_stok else 0
+        if kaynak_miktar < miktar:
+            urun_info = cursor.execute('SELECT urun_adi FROM urun WHERE id = ?', (urun_id,)).fetchone()
+            return jsonify({
+                'success': False, 
+                'message': f'Kaynak depoda yeterli stok yok! (Mevcut: {kaynak_miktar}, İstenen: {miktar})'
+            })
+        
+        # Update source warehouse stock
+        yeni_kaynak_miktar = kaynak_miktar - miktar
+        cursor.execute('''
+            UPDATE urun_stok SET miktar = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE urun_id = ? AND depo_id = ?
+        ''', (yeni_kaynak_miktar, urun_id, kaynak_depo_id))
+        
+        # Update destination warehouse stock
+        hedef_stok = cursor.execute('''
+            SELECT miktar FROM urun_stok 
+            WHERE urun_id = ? AND depo_id = ?
+        ''', (urun_id, hedef_depo_id)).fetchone()
+        
+        hedef_miktar = hedef_stok['miktar'] if hedef_stok else 0
+        yeni_hedef_miktar = hedef_miktar + miktar
+        
+        if hedef_stok:
+            cursor.execute('''
+                UPDATE urun_stok SET miktar = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE urun_id = ? AND depo_id = ?
+            ''', (yeni_hedef_miktar, urun_id, hedef_depo_id))
+        else:
+            cursor.execute('''
+                INSERT INTO urun_stok (urun_id, depo_id, miktar)
+                VALUES (?, ?, ?)
+            ''', (urun_id, hedef_depo_id, yeni_hedef_miktar))
+        
+        # Log transaction
+        urun_info = cursor.execute('SELECT urun_adi FROM urun WHERE id = ?', (urun_id,)).fetchone()
+        cursor.execute('''
+            INSERT INTO islem_gecmisi (
+                islem_tipi, urun_id, depo_id, hedef_depo_id,
+                eski_deger, yeni_deger, urun_bilgisi, 
+                kullanici_id, kullanici_adi
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            'DEPO_TRANSFER', urun_id, kaynak_depo_id, hedef_depo_id,
+            str(kaynak_miktar), str(yeni_kaynak_miktar),
+            f'{urun_info["urun_adi"]} - {aciklama}',
+            session['kullanici_id'], session['kullanici_adi']
+        ))
+        
+        conn.commit()
+        return jsonify({'success': True, 'message': 'Depo transferi başarıyla tamamlandı!'})
+        
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+        return jsonify({'success': False, 'message': f'Hata: {str(e)}'})
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
 if __name__ == '__main__':
     # Configuration from environment variables
     port = int(os.environ.get('PORT', 5000))
-    debug = os.environ.get('DEBUG', 'False').lower() == 'true'  # Production için False
+    debug = os.environ.get('DEBUG', 'True').lower() == 'true'  # Debug aktif
     host = os.environ.get('HOST', '0.0.0.0')
     
     print(f"🚀 BikeStock uygulaması başlatılıyor...")

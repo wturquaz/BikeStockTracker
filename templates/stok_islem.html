@@ -1,0 +1,761 @@
+{% extends "base.html" %}
+
+{% block title %}Stok İşlemleri - Merkezi Panel{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-boxes"></i> Stok İşlemleri - Merkezi Panel</h5>
+                <small class="text-muted">Tüm stok işlemlerinizi tek yerden yönetin</small>
+            </div>
+            <div class="card-body">
+                <!-- Tab Navigation -->
+                <ul class="nav nav-tabs" id="stokIslemTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="cikis-tab" data-bs-toggle="tab" data-bs-target="#cikis" 
+                                type="button" role="tab">
+                            <i class="bi bi-box-arrow-right text-danger"></i> Stok Çıkışı
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="giris-tab" data-bs-toggle="tab" data-bs-target="#giris" 
+                                type="button" role="tab">
+                            <i class="bi bi-box-arrow-in-down text-success"></i> Stok Girişi
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="transfer-tab" data-bs-toggle="tab" data-bs-target="#transfer" 
+                                type="button" role="tab">
+                            <i class="bi bi-arrow-left-right text-info"></i> Depo Transfer
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Tab Content -->
+                <div class="tab-content mt-4" id="stokIslemTabContent">
+                    
+                    <!-- STOK ÇIKIŞI TAB -->
+                    <div class="tab-pane fade show active" id="cikis" role="tabpanel">
+                        <div class="row mb-4">
+                            <div class="col-md-3">
+                                <label for="cikis_depo_id" class="form-label">
+                                    <i class="bi bi-building"></i> Depo <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" id="cikis_depo_id" required>
+                                    <option value="">Depo seçiniz...</option>
+                                    {% for depo in depolar %}
+                                        <option value="{{ depo.id }}">{{ depo.depo_adi }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="cikis_platform_id" class="form-label">
+                                    <i class="bi bi-shop"></i> Platform/Kanal
+                                </label>
+                                <select class="form-select" id="cikis_platform_id">
+                                    <option value="">Platform seçiniz...</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="cikis_kargo_id" class="form-label">
+                                    <i class="bi bi-truck"></i> Kargo Firması
+                                </label>
+                                <select class="form-select" id="cikis_kargo_id">
+                                    <option value="">Kargo firması seçiniz...</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="cikis_aciklama" class="form-label">
+                                    <i class="bi bi-chat-text"></i> Açıklama
+                                </label>
+                                <input type="text" class="form-control" id="cikis_aciklama" 
+                                       placeholder="Çıkış sebebi..." maxlength="200">
+                            </div>
+                        </div>
+                        
+                        <!-- Ürün Arama -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <label for="cikis_urun_arama" class="form-label">
+                                    <i class="bi bi-search"></i> Ürün Ara ve Sepete Ekle
+                                </label>
+                                <div class="search-container">
+                                    <input type="text" class="form-control" id="cikis_urun_arama" 
+                                           placeholder="Ürün adı veya barkod ile ara...">
+                                    <div id="cikis_searchResults" class="search-results"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sepet -->
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <h6><i class="bi bi-cart"></i> Çıkış Sepeti (<span id="cikis_sepetSayisi">0</span>)</h6>
+                                        <button type="button" class="btn btn-outline-warning btn-sm" onclick="cikisSepetTemizle()">
+                                            <i class="bi bi-trash"></i> Sepeti Temizle
+                                        </button>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="cikis_sepetBos" class="text-center text-muted py-4">
+                                            <i class="bi bi-cart-x fs-1"></i>
+                                            <p>Sepet boş. Ürün arayarak sepete ekleyebilirsiniz.</p>
+                                        </div>
+                                        <div id="cikis_sepetDolu" style="display: none;">
+                                            <div class="table-responsive">
+                                                <table class="table table-hover">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Ürün</th>
+                                                            <th>Mevcut Stok</th>
+                                                            <th>Çıkış Adedi</th>
+                                                            <th>Desi</th>
+                                                            <th>İşlem</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody id="cikis_sepetTablo">
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            <div class="row mt-3">
+                                                <div class="col-md-6">
+                                                    <div class="d-grid">
+                                                        <button type="button" class="btn btn-success btn-lg" 
+                                                                id="cikis_yapBtn" onclick="cikisYap()">
+                                                            <i class="bi bi-check-circle"></i> Stok Çıkışı Yap
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="card bg-light">
+                                                        <div class="card-body p-2">
+                                                            <div class="row text-center">
+                                                                <div class="col-4">
+                                                                    <small class="text-muted">Toplam Ürün</small><br>
+                                                                    <strong id="cikis_toplamUrun">0</strong>
+                                                                </div>
+                                                                <div class="col-4">
+                                                                    <small class="text-muted">Toplam Adet</small><br>
+                                                                    <strong id="cikis_toplamAdet">0</strong>
+                                                                </div>
+                                                                <div class="col-4">
+                                                                    <small class="text-muted">Toplam Desi</small><br>
+                                                                    <strong id="cikis_toplamDesi">0 kg</strong>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- STOK GİRİŞİ TAB -->
+                    <div class="tab-pane fade" id="giris" role="tabpanel">
+                        <div class="row mb-4">
+                            <div class="col-md-4">
+                                <label for="giris_depo_id" class="form-label">
+                                    <i class="bi bi-building"></i> Depo <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" id="giris_depo_id" required>
+                                    <option value="">Depo seçiniz...</option>
+                                    {% for depo in depolar %}
+                                        <option value="{{ depo.id }}">{{ depo.depo_adi }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="giris_urun_id" class="form-label">
+                                    <i class="bi bi-box"></i> Ürün <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" id="giris_urun_id" required>
+                                    <option value="">Ürün seçiniz...</option>
+                                    {% for urun in urunler %}
+                                        <option value="{{ urun.id }}">{{ urun.urun_adi }} 
+                                            {% if urun.jant_ebati %}({{ urun.jant_ebati }}"){% endif %}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="giris_miktar" class="form-label">
+                                    <i class="bi bi-plus-circle"></i> Giriş Miktarı <span class="text-danger">*</span>
+                                </label>
+                                <input type="number" class="form-control" id="giris_miktar" 
+                                       min="1" value="1" required>
+                            </div>
+                        </div>
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <label for="giris_aciklama" class="form-label">
+                                    <i class="bi bi-chat-text"></i> Açıklama
+                                </label>
+                                <input type="text" class="form-control" id="giris_aciklama" 
+                                       placeholder="Giriş sebebi (isteğe bağlı)..." maxlength="200">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="d-grid">
+                                    <button type="button" class="btn btn-success btn-lg" onclick="girisYap()">
+                                        <i class="bi bi-plus-circle"></i> Stok Girişi Yap
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- DEPO TRANSFER TAB -->
+                    <div class="tab-pane fade" id="transfer" role="tabpanel">
+                        <div class="row mb-4">
+                            <div class="col-md-3">
+                                <label for="transfer_kaynak_depo_id" class="form-label">
+                                    <i class="bi bi-building"></i> Kaynak Depo <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" id="transfer_kaynak_depo_id" required>
+                                    <option value="">Kaynak depo seçiniz...</option>
+                                    {% for depo in depolar %}
+                                        <option value="{{ depo.id }}">{{ depo.depo_adi }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="transfer_hedef_depo_id" class="form-label">
+                                    <i class="bi bi-building-add"></i> Hedef Depo <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" id="transfer_hedef_depo_id" required>
+                                    <option value="">Hedef depo seçiniz...</option>
+                                    {% for depo in depolar %}
+                                        <option value="{{ depo.id }}">{{ depo.depo_adi }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="transfer_urun_id" class="form-label">
+                                    <i class="bi bi-box"></i> Ürün <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" id="transfer_urun_id" required>
+                                    <option value="">Ürün seçiniz...</option>
+                                    {% for urun in urunler %}
+                                        <option value="{{ urun.id }}">{{ urun.urun_adi }} 
+                                            {% if urun.jant_ebati %}({{ urun.jant_ebati }}"){% endif %}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="transfer_miktar" class="form-label">
+                                    <i class="bi bi-arrow-left-right"></i> Transfer Miktarı <span class="text-danger">*</span>
+                                </label>
+                                <input type="number" class="form-control" id="transfer_miktar" 
+                                       min="1" value="1" required>
+                            </div>
+                        </div>
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <label for="transfer_aciklama" class="form-label">
+                                    <i class="bi bi-chat-text"></i> Açıklama
+                                </label>
+                                <input type="text" class="form-control" id="transfer_aciklama" 
+                                       placeholder="Transfer sebebi (isteğe bağlı)..." maxlength="200">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="d-grid">
+                                    <button type="button" class="btn btn-info btn-lg" onclick="transferYap()">
+                                        <i class="bi bi-arrow-left-right"></i> Depo Transfer Yap
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Global variables for stock operations
+var cikisSepeti = [];
+var platformlar = [];
+var kargoFirmalari = [];
+
+// Document ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Load platforms and cargo companies
+    loadPlatformlar();
+    loadKargoFirmalari();
+    
+    // Initialize search functionality
+    initializeCikisSearch();
+});
+
+// Load platforms
+function loadPlatformlar() {
+    fetch('/api/platformlar')
+        .then(response => response.json())
+        .then(data => {
+            platformlar = data;
+            const select = document.getElementById('cikis_platform_id');
+            select.innerHTML = '<option value="">Platform seçiniz...</option>';
+            data.forEach(platform => {
+                select.innerHTML += `<option value="${platform.id}">${platform.platform_adi}</option>`;
+            });
+        })
+        .catch(error => {
+            console.error('Platform yükleme hatası:', error);
+        });
+}
+
+// Load cargo companies
+function loadKargoFirmalari() {
+    console.log('Kargo firmaları yükleniyor...');
+    fetch('/api/kargo_firmalari')
+        .then(response => {
+            console.log('Kargo API response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Kargo API response data:', data);
+            
+            if (data.error) {
+                console.error('Kargo API error:', data.error);
+                return;
+            }
+            
+            // API'den dönen data yapısı: {firmalar: [...], varsayilan_id: ...}
+            const firmalar = data.firmalar || [];
+            kargoFirmalari = firmalar;
+            const select = document.getElementById('cikis_kargo_id');
+            
+            if (!select) {
+                console.error('Kargo select elementi bulunamadı');
+                return;
+            }
+            
+            select.innerHTML = '<option value="">Kargo firması seçiniz...</option>';
+            firmalar.forEach(kargo => {
+                const option = document.createElement('option');
+                option.value = kargo.id;
+                option.textContent = kargo.firma_adi;
+                select.appendChild(option);
+            });
+            
+            console.log(`${firmalar.length} kargo firması yüklendi`);
+            
+            // Varsayılan kargo firmasını seç
+            if (data.varsayilan_id) {
+                select.value = data.varsayilan_id;
+            }
+        })
+        .catch(error => {
+            console.error('Kargo firmaları yükleme hatası:', error);
+            alert('Kargo firmaları yüklenirken hata oluştu: ' + error.message);
+        });
+}
+
+// Initialize product search for stock exit
+function initializeCikisSearch() {
+    const searchInput = document.getElementById('cikis_urun_arama');
+    const resultsDiv = document.getElementById('cikis_searchResults');
+    let searchTimeout;
+
+    searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        const query = this.value.trim();
+        const depoId = document.getElementById('cikis_depo_id').value;
+
+        if (query.length < 2 || !depoId) {
+            resultsDiv.innerHTML = '';
+            resultsDiv.style.display = 'none';
+            return;
+        }
+
+        searchTimeout = setTimeout(() => {
+            fetch(`/api/urun_ara?q=${encodeURIComponent(query)}&depo_id=${encodeURIComponent(depoId)}`)
+                .then(response => response.json())
+                .then(data => {
+                    displaySearchResults(data, resultsDiv, 'cikis');
+                })
+                .catch(error => {
+                    console.error('Ürün arama hatası:', error);
+                });
+        }, 300);
+    });
+}
+
+// Display search results
+function displaySearchResults(results, container, type) {
+    if (!results || results.length === 0) {
+        container.innerHTML = '<div class="search-item text-muted">Ürün bulunamadı</div>';
+        container.style.display = 'block';
+        return;
+    }
+
+    let html = '';
+    results.forEach(urun => {
+        html += `
+            <div class="search-item" onclick="addToCart('${type}', ${urun.id}, '${urun.urun_adi}', ${urun.stok_miktari || 0})">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <strong>${urun.urun_adi}</strong>
+                        ${urun.jant_ebati ? `<small class="text-muted">(${urun.jant_ebati}")</small>` : ''}
+                    </div>
+                    <div class="text-end">
+                        <small class="text-muted">Stok: ${urun.stok_miktari || 0}</small>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+    container.style.display = 'block';
+}
+
+// Add product to cart
+function addToCart(type, urunId, urunAdi, mevcutStok) {
+    if (type === 'cikis') {
+        // Check if product already in cart
+        const existingIndex = cikisSepeti.findIndex(item => item.urun_id === urunId);
+        
+        if (existingIndex !== -1) {
+            // Increase quantity
+            cikisSepeti[existingIndex].adet++;
+        } else {
+            // Add new item
+            cikisSepeti.push({
+                urun_id: urunId,
+                urun_adi: urunAdi,
+                mevcut_stok: mevcutStok,
+                adet: 1,
+                desi: 0.00
+            });
+        }
+        
+        updateCikisSepet();
+        
+        // Clear search
+        document.getElementById('cikis_urun_arama').value = '';
+        document.getElementById('cikis_searchResults').style.display = 'none';
+    }
+}
+
+// Update exit cart display
+function updateCikisSepet() {
+    const sepetBos = document.getElementById('cikis_sepetBos');
+    const sepetDolu = document.getElementById('cikis_sepetDolu');
+    const sepetSayisi = document.getElementById('cikis_sepetSayisi');
+    const sepetTablo = document.getElementById('cikis_sepetTablo');
+
+    if (cikisSepeti.length === 0) {
+        sepetBos.style.display = 'block';
+        sepetDolu.style.display = 'none';
+        sepetSayisi.textContent = '0';
+        return;
+    }
+
+    sepetBos.style.display = 'none';
+    sepetDolu.style.display = 'block';
+    sepetSayisi.textContent = cikisSepeti.length;
+
+    let tableHTML = '';
+    let toplamUrun = cikisSepeti.length;
+    let toplamAdet = 0;
+    let toplamDesi = 0;
+
+    cikisSepeti.forEach((item, index) => {
+        toplamAdet += item.adet;
+        toplamDesi += (item.desi * item.adet);
+        
+        tableHTML += `
+            <tr>
+                <td>
+                    <strong>${item.urun_adi}</strong>
+                </td>
+                <td>
+                    <span class="badge ${item.mevcut_stok >= item.adet ? 'bg-success' : 'bg-danger'}">
+                        ${item.mevcut_stok}
+                    </span>
+                </td>
+                <td>
+                    <div class="input-group input-group-sm" style="width: 120px;">
+                        <button class="btn btn-outline-secondary" type="button" 
+                                onclick="updateCikisAdet(${index}, -1)">-</button>
+                        <input type="number" class="form-control text-center" 
+                               value="${item.adet}" min="1" 
+                               onchange="updateCikisAdetDirect(${index}, this.value)">
+                        <button class="btn btn-outline-secondary" type="button" 
+                                onclick="updateCikisAdet(${index}, 1)">+</button>
+                    </div>
+                </td>
+                <td>${item.desi.toFixed(2)} kg</td>
+                <td>
+                    <button class="btn btn-outline-danger btn-sm" 
+                            onclick="removeCikisItem(${index})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+
+    sepetTablo.innerHTML = tableHTML;
+    
+    // Update totals
+    document.getElementById('cikis_toplamUrun').textContent = toplamUrun;
+    document.getElementById('cikis_toplamAdet').textContent = toplamAdet;
+    document.getElementById('cikis_toplamDesi').textContent = toplamDesi.toFixed(2);
+}
+
+// Update exit quantity
+function updateCikisAdet(index, change) {
+    if (cikisSepeti[index]) {
+        const newAdet = cikisSepeti[index].adet + change;
+        if (newAdet >= 1) {
+            cikisSepeti[index].adet = newAdet;
+            updateCikisSepet();
+        }
+    }
+}
+
+// Update exit quantity directly
+function updateCikisAdetDirect(index, value) {
+    const adet = parseInt(value);
+    if (adet >= 1 && cikisSepeti[index]) {
+        cikisSepeti[index].adet = adet;
+        updateCikisSepet();
+    }
+}
+
+// Remove item from exit cart
+function removeCikisItem(index) {
+    cikisSepeti.splice(index, 1);
+    updateCikisSepet();
+}
+
+// Clear exit cart
+function cikisSepetTemizle() {
+    if (confirm('Sepetteki tüm ürünleri silmek istediğinizden emin misiniz?')) {
+        cikisSepeti = [];
+        updateCikisSepet();
+    }
+}
+
+// Perform stock exit
+function cikisYap() {
+    const depoId = document.getElementById('cikis_depo_id').value;
+    const platformId = document.getElementById('cikis_platform_id').value;
+    const kargoId = document.getElementById('cikis_kargo_id').value;
+    const aciklama = document.getElementById('cikis_aciklama').value;
+
+    if (!depoId) {
+        alert('Lütfen depo seçiniz!');
+        return;
+    }
+
+    if (cikisSepeti.length === 0) {
+        alert('Sepet boş! Lütfen ürün ekleyiniz.');
+        return;
+    }
+
+    // Prepare data
+    const data = {
+        depo_id: parseInt(depoId),
+        platform_id: platformId ? parseInt(platformId) : null,
+        kargo_id: kargoId ? parseInt(kargoId) : null,
+        aciklama: aciklama,
+        urunler: cikisSepeti.map(item => ({
+            urun_id: item.urun_id,
+            adet: item.adet
+        }))
+    };
+
+    // Send request
+    fetch('/api/stok_cikis', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert('Stok çıkışı başarıyla gerçekleştirildi!');
+            // Reset form
+            cikisSepeti = [];
+            updateCikisSepet();
+            document.getElementById('cikis_depo_id').value = '';
+            document.getElementById('cikis_platform_id').value = '';
+            document.getElementById('cikis_kargo_id').value = '';
+            document.getElementById('cikis_aciklama').value = '';
+        } else {
+            alert('Hata: ' + result.message);
+        }
+    })
+    .catch(error => {
+        console.error('Stok çıkış hatası:', error);
+        alert('İşlem sırasında bir hata oluştu!');
+    });
+}
+
+// Perform stock entry
+function girisYap() {
+    const depoId = document.getElementById('giris_depo_id').value;
+    const urunId = document.getElementById('giris_urun_id').value;
+    const miktar = document.getElementById('giris_miktar').value;
+    const aciklama = document.getElementById('giris_aciklama').value;
+
+    if (!depoId || !urunId || !miktar) {
+        alert('Lütfen tüm zorunlu alanları doldurunuz!');
+        return;
+    }
+
+    const data = {
+        depo_id: parseInt(depoId),
+        urun_id: parseInt(urunId),
+        miktar: parseInt(miktar),
+        aciklama: aciklama
+    };
+
+    fetch('/api/stok_giris', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert('Stok girişi başarıyla gerçekleştirildi!');
+            // Reset form
+            document.getElementById('giris_depo_id').value = '';
+            document.getElementById('giris_urun_id').value = '';
+            document.getElementById('giris_miktar').value = '1';
+            document.getElementById('giris_aciklama').value = '';
+        } else {
+            alert('Hata: ' + result.message);
+        }
+    })
+    .catch(error => {
+        console.error('Stok giriş hatası:', error);
+        alert('İşlem sırasında bir hata oluştu!');
+    });
+}
+
+// Perform warehouse transfer
+function transferYap() {
+    const kaynakDepoId = document.getElementById('transfer_kaynak_depo_id').value;
+    const hedefDepoId = document.getElementById('transfer_hedef_depo_id').value;
+    const urunId = document.getElementById('transfer_urun_id').value;
+    const miktar = document.getElementById('transfer_miktar').value;
+    const aciklama = document.getElementById('transfer_aciklama').value;
+
+    if (!kaynakDepoId || !hedefDepoId || !urunId || !miktar) {
+        alert('Lütfen tüm zorunlu alanları doldurunuz!');
+        return;
+    }
+
+    if (kaynakDepoId === hedefDepoId) {
+        alert('Kaynak ve hedef depo aynı olamaz!');
+        return;
+    }
+
+    const data = {
+        kaynak_depo_id: parseInt(kaynakDepoId),
+        hedef_depo_id: parseInt(hedefDepoId),
+        urun_id: parseInt(urunId),
+        miktar: parseInt(miktar),
+        aciklama: aciklama
+    };
+
+    fetch('/api/depo_transfer', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert('Depo transferi başarıyla gerçekleştirildi!');
+            // Reset form
+            document.getElementById('transfer_kaynak_depo_id').value = '';
+            document.getElementById('transfer_hedef_depo_id').value = '';
+            document.getElementById('transfer_urun_id').value = '';
+            document.getElementById('transfer_miktar').value = '1';
+            document.getElementById('transfer_aciklama').value = '';
+        } else {
+            alert('Hata: ' + result.message);
+        }
+    })
+    .catch(error => {
+        console.error('Transfer hatası:', error);
+        alert('İşlem sırasında bir hata oluştu!');
+    });
+}
+</script>
+
+<style>
+.search-container {
+    position: relative;
+}
+
+.search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-top: none;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+}
+
+.search-item {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+}
+
+.search-item:hover {
+    background-color: #f8f9fa;
+}
+
+.search-item:last-child {
+    border-bottom: none;
+}
+
+.nav-tabs .nav-link {
+    color: #6c757d;
+}
+
+.nav-tabs .nav-link.active {
+    font-weight: 600;
+}
+
+.card.border-primary {
+    border-width: 2px !important;
+}
+</style>
+{% endblock %}

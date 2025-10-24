@@ -34,10 +34,11 @@
                                 <th>ID</th>
                                 <th>Ürün Adı</th>
                                 <th>Jant Ebatı</th>
+                                <th>Toplam Stok</th>
+                                <th>Depo Dağılımı</th>
                                 <th>Desi (kg)</th>
                                 <th>Barkod</th>
                                 <th>Açıklama</th>
-                                <th>Oluşturma</th>
                                 <th>İşlemler</th>
                             </tr>
                         </thead>
@@ -52,6 +53,28 @@
                                     <span class="badge bg-info">{{ urun.jant_ebati }}"</span>
                                 </td>
                                 <td>
+                                    {% if urun.toplam_stok > 0 %}
+                                        <span class="badge bg-success">{{ urun.toplam_stok }} adet</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Stok Yok</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if urun.depo_detay %}
+                                        <small class="text-muted">
+                                            {% set depolar = urun.depo_detay.split(',') %}
+                                            {% for depo in depolar[:2] %}
+                                                {{ depo.strip() }}<br>
+                                            {% endfor %}
+                                            {% if depolar|length > 2 %}
+                                                <span class="text-info">+{{ depolar|length - 2 }} depo daha</span>
+                                            {% endif %}
+                                        </small>
+                                    {% else %}
+                                        <span class="text-muted">Depoda yok</span>
+                                    {% endif %}
+                                </td>
+                                <td>
                                     <span class="badge bg-warning text-dark">{{ "%.2f"|format(urun.desi or 0) }} kg</span>
                                 </td>
                                 <td>
@@ -63,20 +86,11 @@
                                 </td>
                                 <td>
                                     {% if urun.aciklama %}
-                                        {{ urun.aciklama[:50] }}{{ '...' if urun.aciklama|length > 50 else '' }}
+                                        {{ urun.aciklama[:30] }}{{ '...' if urun.aciklama|length > 30 else '' }}
                                     {% else %}
                                         <span class="text-muted">-</span>
                                     {% endif %}
                                 </td>
-                                <td>
-                                    <small class="text-muted">
-                                        {% if urun.created_at %}
-                                            {% set date_str = urun.created_at.split(' ')[0] if ' ' in urun.created_at else urun.created_at %}
-                                            {{ date_str.split('-')[2] }}.{{ date_str.split('-')[1] }}.{{ date_str.split('-')[0] }}
-                                        {% else %}
-                                            N/A
-                                        {% endif %}
-                                    </small>
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm" role="group">

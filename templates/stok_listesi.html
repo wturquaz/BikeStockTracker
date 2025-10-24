@@ -45,6 +45,7 @@
                                 <th>Toplam Stok</th>
                                 <th>Depo Dağılımı</th>
                                 <th>Durum</th>
+                                <th>İşlemler</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -100,6 +101,23 @@
                                     {% else %}
                                         <span class="badge bg-success">Yeterli</span>
                                     {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <a href="{{ url_for('urun_guncelle', id=stok.id) }}" 
+                                           class="btn btn-outline-primary" 
+                                           title="Ürünü Düzenle">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <button type="button" 
+                                                class="btn btn-outline-success hizli-stok-btn" 
+                                                title="Hızlı Stok Düzenle"
+                                                data-urun-id="{{ stok.id }}"
+                                                data-urun-adi="{{ stok.urun_adi }}"
+                                                data-mevcut-stok="{{ stok.stok_adedi or 0 }}">
+                                            <i class="bi bi-box"></i>
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -176,6 +194,54 @@
         </div>
     </div>
 </div>
+
+<!-- Hızlı Stok Düzenleme Modal -->
+<div class="modal fade" id="hizliStokModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-box"></i> Hızlı Stok Düzenleme
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="hizliStokForm">
+                    <input type="hidden" id="hizli_urun_id">
+                    <input type="hidden" id="hizli_depo_id" value="{{ secili_depo_id }}">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Ürün</label>
+                        <input type="text" class="form-control" id="hizli_urun_adi" readonly>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Mevcut Stok</label>
+                            <input type="text" class="form-control" id="hizli_mevcut_stok" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Yeni Stok Miktarı <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="hizli_yeni_stok" min="0" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <label class="form-label">Açıklama</label>
+                        <textarea class="form-control" id="hizli_aciklama" rows="2" placeholder="Stok güncelleme sebebi..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                <button type="button" class="btn btn-success" onclick="hizliStokKaydet()">
+                    <i class="bi bi-check-lg"></i> Stoğu Güncelle
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -185,12 +251,95 @@ function depoChanged() {
     window.location.href = '{{ url_for("stok_listesi") }}?depo_id=' + depoId;
 }
 
-// Popover'ları etkinleştir
+// Hızlı stok düzenleme modal'ını aç
 document.addEventListener('DOMContentLoaded', function() {
+    // Popover'ları etkinleştir
     var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
     var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
         return new bootstrap.Popover(popoverTriggerEl);
     });
+    
+    // Hızlı stok düzenleme butonları
+    document.querySelectorAll('.hizli-stok-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const urunId = this.getAttribute('data-urun-id');
+            const urunAdi = this.getAttribute('data-urun-adi');
+            const mevcutStok = this.getAttribute('data-mevcut-stok');
+            
+            document.getElementById('hizli_urun_id').value = urunId;
+            document.getElementById('hizli_urun_adi').value = urunAdi;
+            document.getElementById('hizli_mevcut_stok').value = mevcutStok;
+            document.getElementById('hizli_yeni_stok').value = mevcutStok;
+            document.getElementById('hizli_aciklama').value = '';
+            
+            const modal = new bootstrap.Modal(document.getElementById('hizliStokModal'));
+            modal.show();
+        });
+    });
 });
+
+function hizliStokKaydet() {
+    const urunId = document.getElementById('hizli_urun_id').value;
+    const depoId = document.getElementById('hizli_depo_id').value;
+    const mevcutStok = parseInt(document.getElementById('hizli_mevcut_stok').value);
+    const yeniStok = parseInt(document.getElementById('hizli_yeni_stok').value);
+    const aciklama = document.getElementById('hizli_aciklama').value;
+    
+    if (isNaN(yeniStok) || yeniStok < 0) {
+        alert('Lütfen geçerli bir stok miktarı giriniz!');
+        return;
+    }
+    
+    // Stok farkını hesapla
+    const fark = yeniStok - mevcutStok;
+    let apiEndpoint, data;
+    
+    if (fark > 0) {
+        // Stok girişi
+        apiEndpoint = '/api/stok_giris';
+        data = {
+            depo_id: parseInt(depoId),
+            urun_id: parseInt(urunId),
+            miktar: fark,
+            aciklama: aciklama || 'Hızlı stok düzenleme (giriş)'
+        };
+    } else if (fark < 0) {
+        // Stok çıkışı
+        apiEndpoint = '/api/stok_cikis';
+        data = {
+            depo_id: parseInt(depoId),
+            urunler: [{
+                urun_id: parseInt(urunId),
+                adet: Math.abs(fark)
+            }],
+            aciklama: aciklama || 'Hızlı stok düzenleme (çıkış)'
+        };
+    } else {
+        alert('Stok miktarı değişmedi!');
+        return;
+    }
+    
+    // API çağrısı
+    fetch(apiEndpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert('Stok başarıyla güncellendi!');
+            location.reload();
+        } else {
+            alert('Hata: ' + result.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('İşlem sırasında hata oluştu!');
+    });
+}
 </script>
 {% endblock %}

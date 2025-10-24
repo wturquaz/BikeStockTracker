@@ -107,28 +107,14 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('urun_listesi') }}">
-                            <i class="bi bi-tag"></i> Ürün Yönetimi
-                        </a>
-                    </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('stok_cikisi') }}">
-                            <i class="bi bi-arrow-down-circle"></i> Stok Çıkışı
+                        <a class="nav-link" href="{{ url_for('stok_islem') }}">
+                            <i class="bi bi-boxes"></i> Stok İşlemleri
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('fis_listesi') }}">
                             <i class="bi bi-receipt"></i> Fiş Listesi
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('stok_girisi') }}">
-                            <i class="bi bi-arrow-up-circle"></i> Stok Girişi
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('depo_transfer') }}">
-                            <i class="bi bi-arrow-left-right"></i> Depo Transfer
                         </a>
                     </li>
                     <li class="nav-item">
@@ -149,6 +135,9 @@
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="{{ url_for('kullanici_listesi') }}">
                                 <i class="bi bi-people"></i> Kullanıcı Yönetimi
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('depo_listesi') }}">
+                                <i class="bi bi-building"></i> Depo Yönetimi
                             </a></li>
                             <li><a class="dropdown-item" href="{{ url_for('ayarlar') }}">
                                 <i class="bi bi-gear-fill"></i> Sistem Ayarları
@@ -216,22 +205,14 @@
                         <li><a href="{{ url_for('stok_listesi') }}" class="text-muted text-decoration-none">
                             <i class="bi bi-boxes"></i> Stok Listesi
                         </a></li>
-                        <li><a href="{{ url_for('stok_girisi') }}" class="text-muted text-decoration-none">
-                            <i class="bi bi-arrow-up-circle"></i> Stok Girişi
-                        </a></li>
-                        <li><a href="{{ url_for('stok_cikisi') }}" class="text-muted text-decoration-none">
-                            <i class="bi bi-arrow-down-circle"></i> Stok Çıkışı
-                        </a></li>
                     </ul>
                 </div>
                 <div class="col-md-2">
                     <h6>Yönetim</h6>
                     <ul class="list-unstyled">
-                        <li><a href="{{ url_for('urun_listesi') }}" class="text-muted text-decoration-none">
-                            <i class="bi bi-tag"></i> Ürün Yönetimi
+                        <li><a href="{{ url_for('stok_listesi') }}" class="text-muted text-decoration-none">
+                            <i class="bi bi-boxes"></i> Stok Listesi
                         </a></li>
-                        <li><a href="{{ url_for('depo_transfer') }}" class="text-muted text-decoration-none">
-                            <i class="bi bi-arrow-left-right"></i> Depo Transfer
                         </a></li>
                         <li><a href="{{ url_for('islem_gecmisi') }}" class="text-muted text-decoration-none">
                             <i class="bi bi-clock-history"></i> İşlem Geçmişi

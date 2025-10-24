@@ -36,21 +36,8 @@
                 <i class="bi bi-arrow-down-circle text-danger" style="font-size: 3rem;"></i>
                 <h5 class="card-title mt-3">Stok Çıkışı</h5>
                 <p class="card-text">Barkod veya ürün adı ile stok çıkışı yapın</p>
-                <a href="{{ url_for('stok_cikisi') }}" class="btn btn-danger">
+                <a href="{{ url_for('stok_islem') }}" class="btn btn-danger">
                     <i class="bi bi-arrow-right"></i> Çıkış Yap
-                </a>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-3 mb-4">
-        <div class="card h-100 border-warning">
-            <div class="card-body text-center">
-                <i class="bi bi-tag text-warning" style="font-size: 3rem;"></i>
-                <h5 class="card-title mt-3">Ürün Yönetimi</h5>
-                <p class="card-text">Ürün ekleme, düzenleme ve güncelleme</p>
-                <a href="{{ url_for('urun_listesi') }}" class="btn btn-warning">
-                    <i class="bi bi-arrow-right"></i> Yönet
                 </a>
             </div>
         </div>
@@ -88,7 +75,7 @@
                 <i class="bi bi-arrow-up-circle text-success" style="font-size: 3rem;"></i>
                 <h5 class="card-title mt-3">Stok Girişi</h5>
                 <p class="card-text">Yeni stok girişi ve tedarik işlemleri</p>
-                <a href="{{ url_for('stok_girisi') }}" class="btn btn-success">
+                <a href="{{ url_for('stok_islem') }}" class="btn btn-success">
                     <i class="bi bi-arrow-right"></i> Giriş Yap
                 </a>
             </div>
@@ -101,8 +88,8 @@
                 <i class="bi bi-arrow-left-right text-primary" style="font-size: 3rem;"></i>
                 <h5 class="card-title mt-3">Depo Transfer</h5>
                 <p class="card-text">Depolar arası stok transfer işlemleri</p>
-                <a href="{{ url_for('depo_transfer') }}" class="btn btn-primary">
-                    <i class="bi bi-arrow-right"></i> Transfer
+                <a href="{{ url_for('stok_islem') }}" class="btn btn-primary">
+                    <i class="bi bi-arrow-right"></i> Transfer Yap
                 </a>
             </div>
         </div>

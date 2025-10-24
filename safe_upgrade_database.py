@@ -88,9 +88,16 @@ def upgrade_database():
                 urun_bilgisi TEXT,
                 kullanici_id INTEGER,
                 kullanici_adi VARCHAR(50),
+                platform_id INTEGER,
+                musteri_id INTEGER,
+                kargo_bilgisi TEXT,
+                takip_no VARCHAR(100),
+                teslimat_durumu VARCHAR(50) DEFAULT 'HAZIRLANYOR',
                 FOREIGN KEY (urun_id) REFERENCES urun (id),
                 FOREIGN KEY (depo_id) REFERENCES depo (id),
-                FOREIGN KEY (kullanici_id) REFERENCES kullanici (id)
+                FOREIGN KEY (kullanici_id) REFERENCES kullanici (id),
+                FOREIGN KEY (platform_id) REFERENCES platform (id),
+                FOREIGN KEY (musteri_id) REFERENCES musteri (id)
             )
         ''')
         
@@ -139,6 +146,34 @@ def upgrade_database():
             )
         ''')
         
+        # Platform tablosu (E-ticaret platformları)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS platform (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                platform_adi VARCHAR(100) NOT NULL UNIQUE,
+                platform_tipi VARCHAR(50) DEFAULT 'E-TICARET',
+                komisyon_orani DECIMAL(5,2) DEFAULT 0.00,
+                api_bilgileri TEXT,
+                aktif BOOLEAN DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Müşteri tablosu
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS musteri (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                musteri_adi VARCHAR(200) NOT NULL,
+                musteri_tipi VARCHAR(50) DEFAULT 'BIREYSEL',
+                telefon VARCHAR(20),
+                email VARCHAR(100),
+                adres TEXT,
+                vergi_no VARCHAR(20),
+                aktif BOOLEAN DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
         # Ayarlar tablosu
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS ayarlar (
@@ -169,6 +204,39 @@ def upgrade_database():
             VALUES ('Ana Depo', 1)
         ''')
         
+        # Varsayılan platformlar
+        platformlar = [
+            ('Trendyol', 'E-TICARET', 15.00),
+            ('Hepsiburada', 'E-TICARET', 12.00),
+            ('N11', 'E-TICARET', 8.00),
+            ('Amazon', 'E-TICARET', 10.00),
+            ('GittiGidiyor', 'E-TICARET', 6.00),
+            ('Ciceksepeti', 'E-TICARET', 8.00),
+            ('Mağaza Satış', 'FIZIKSEL', 0.00),
+            ('Bayi Satış', 'TOPTAN', 0.00),
+            ('Diğer', 'DIGER', 0.00)
+        ]
+        
+        for platform_adi, platform_tipi, komisyon in platformlar:
+            cursor.execute('''
+                INSERT OR IGNORE INTO platform (platform_adi, platform_tipi, komisyon_orani, aktif)
+                VALUES (?, ?, ?, 1)
+            ''', (platform_adi, platform_tipi, komisyon))
+        
+        # Varsayılan müşteriler
+        musteriler = [
+            ('Bireysel Müşteri', 'BIREYSEL'),
+            ('Kurumsal Müşteri', 'KURUMSAL'),
+            ('Bayi', 'BAYI'),
+            ('Toptan Müşteri', 'TOPTAN')
+        ]
+        
+        for musteri_adi, musteri_tipi in musteriler:
+            cursor.execute('''
+                INSERT OR IGNORE INTO musteri (musteri_adi, musteri_tipi, aktif)
+                VALUES (?, ?, 1)
+            ''', (musteri_adi, musteri_tipi))
+        
         # Varsayılan kargo firmaları
         kargo_firmalari = [
             'Yurtiçi Kargo', 'Aras Kargo', 'MNG Kargo', 
@@ -179,6 +247,58 @@ def upgrade_database():
             cursor.execute('INSERT OR IGNORE INTO kargo_firmasi (firma_adi) VALUES (?)', (firma,))
         
         # Değişiklikleri kaydet
+        
+        print("🔄 Eksik sütunlar kontrol ediliyor ve ekleniyor...")
+        
+        # islem_gecmisi tablosuna eksik sütunları ekle
+        try:
+            # platform_id sütununu kontrol et ve ekle
+            cursor.execute("PRAGMA table_info(islem_gecmisi)")
+            columns = [column[1] for column in cursor.fetchall()]
+
+            if 'platform_id' not in columns:
+                print("   + platform_id sütunu ekleniyor...")
+                cursor.execute('ALTER TABLE islem_gecmisi ADD COLUMN platform_id INTEGER')
+
+            if 'musteri_id' not in columns:
+                print("   + musteri_id sütunu ekleniyor...")
+                cursor.execute('ALTER TABLE islem_gecmisi ADD COLUMN musteri_id INTEGER')
+
+            if 'kargo_bilgisi' not in columns:
+                print("   + kargo_bilgisi sütunu ekleniyor...")
+                cursor.execute('ALTER TABLE islem_gecmisi ADD COLUMN kargo_bilgisi TEXT')
+
+            if 'takip_no' not in columns:
+                print("   + takip_no sütunu ekleniyor...")
+                cursor.execute('ALTER TABLE islem_gecmisi ADD COLUMN takip_no VARCHAR(100)')
+
+            if 'teslimat_durumu' not in columns:
+                print("   + teslimat_durumu sütunu ekleniyor...")
+                cursor.execute('ALTER TABLE islem_gecmisi ADD COLUMN teslimat_durumu VARCHAR(50) DEFAULT "HAZIRLANYOR"')
+
+            print("✅ İşlem geçmişi tablosu güncellendi!")
+
+            # kargo_firmasi tablosuna kisa_adi sütunu ekle
+            cursor.execute("PRAGMA table_info(kargo_firmasi)")
+            kargo_columns = [column[1] for column in cursor.fetchall()]
+            if 'kisa_adi' not in kargo_columns:
+                print("   + kargo_firmasi tablosuna kisa_adi sütunu ekleniyor...")
+                cursor.execute('ALTER TABLE kargo_firmasi ADD COLUMN kisa_adi VARCHAR(50)')
+
+            # stok_cikis_fis tablosuna eksik sütunları ekle (özellikle platform_id)
+            try:
+                cursor.execute("PRAGMA table_info(stok_cikis_fis)")
+                f_columns = [col[1] for col in cursor.fetchall()]
+                if 'platform_id' not in f_columns:
+                    print("   + stok_cikis_fis tablosuna platform_id sütunu ekleniyor...")
+                    cursor.execute('ALTER TABLE stok_cikis_fis ADD COLUMN platform_id INTEGER')
+                # Eğer gerektiğini düşünürseniz, ileride burada musteri_id veya takip_no gibi sütunları da ekleyebilirsiniz
+            except Exception as e:
+                print(f"⚠️ stok_cikis_fis tablosu güncellemesi sırasında hata: {e}")
+
+        except Exception as e:
+            print(f"⚠️ İşlem geçmişi veya kargo_firmasi tablosu güncelleme hatası: {e}")
+        
         conn.commit()
         
         print("✅ Database upgrade başarıyla tamamlandı!")
