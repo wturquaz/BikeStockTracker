@@ -409,14 +409,14 @@ function displaySearchResults(results, container, type) {
     let html = '';
     results.forEach(urun => {
         html += `
-            <div class="search-item" onclick="addToCart('${type}', ${urun.id}, '${urun.urun_adi}', ${urun.stok_miktari || 0})">
+            <div class="search-item" onclick="addToCart('${type}', ${urun.id}, '${urun.urun_adi}', ${urun.stok_adedi || 0})">
                 <div class="d-flex justify-content-between">
                     <div>
                         <strong>${urun.urun_adi}</strong>
                         ${urun.jant_ebati ? `<small class="text-muted">(${urun.jant_ebati}")</small>` : ''}
                     </div>
                     <div class="text-end">
-                        <small class="text-muted">Stok: ${urun.stok_miktari || 0}</small>
+                        <small class="text-muted">Stok: ${urun.stok_adedi || 0}</small>
                     </div>
                 </div>
             </div>
